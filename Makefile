@@ -1,6 +1,6 @@
 CFLAGS = -O2 -Wall -ggdb
 OBJS = usg.o dynstuff.o xmalloc.o auth.o msgqueue.o
-LIBS = -lpthread
+LIBS = 
 
 all:	usg dirs
 
