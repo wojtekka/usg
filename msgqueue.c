@@ -54,12 +54,15 @@ int unqueue_message(int uin, msgqueue_t *m)
 		if (sscanf(de->d_name, "%d-%d-%d-%d", &m->time, &m->sender, &m->seq, &m->msgclass) != 4)
 			continue;
 
-		if ((fd = open(buf, O_RDONLY)) == -1)
+		if ((fd = open(buf, O_RDONLY)) == -1) {
+			closedir(d);
 			return -1;
+		}
 						
 		m->text = xmalloc(st.st_size);
 		if (read(fd, m->text, st.st_size) < st.st_size) {
 			xfree(m->text);
+			closedir(d);
 			return -1;
 		}
 		close(fd);
@@ -67,7 +70,9 @@ int unqueue_message(int uin, msgqueue_t *m)
 		unlink(buf);
 
 		return 0;
+		closedir(d);
 	}
 
+	closedir(d);
 	return -1;
 }

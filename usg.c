@@ -509,10 +509,10 @@ int handle_input(client_t *c)
 			return 1;
 		}
 		
-		if (c->ibuf_len - 8 >= h->length) {
+		if (c->ibuf_len >= 8 + h->length) {
 			handle_input_packet(c);
 
-			if (c->ibuf_len - 8 == h->length) {
+			if (c->ibuf_len == 8 + h->length) {
 				xfree(c->ibuf);
 				c->ibuf_len = 0;
 				c->ibuf = NULL;
@@ -539,11 +539,12 @@ int handle_output(client_t *c)
 	res = write(c->fd, c->obuf, c->obuf_len);
 
 	if (res < 1) {
+		printf("write failed. removing client fd=%d\n", c->fd);
 		remove_client(c);
 		return 1;
 	}
 	
-	if (res == c->obuf_len) {
+	if (res >= c->obuf_len) {
 		xfree(c->obuf);
 		c->obuf = NULL;
 		c->obuf_len = 0;
