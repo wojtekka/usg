@@ -20,56 +20,57 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #ifndef _AIX
 #  include <string.h>
 #endif
 
 extern int ibuf_len, obuf_len;
 
-static void oom_handler()
+static void oom_handler(char *a, int b)
 {
-	fprintf(stderr, "Out of memory. Input buffers: %d bytes, output buffers: %d bytes.\n", ibuf_len, obuf_len);
+	fprintf(stderr, "Out of memory in %s:%d\nInput buffers: %d bytes, output buffers: %d bytes\nDumping core, so you could backtrace it with gdb\n\n", a, b, ibuf_len, obuf_len);
 
-	exit(1);
+	raise(SIGSEGV);
 }
 
-void *xcalloc(int nmemb, int size)
+void *xcalloc_(int nmemb, int size, char *a, int b)
 {
 	void *tmp = calloc(nmemb, size);
 
 	if (!tmp)
-		oom_handler();
+		oom_handler(a, b);
 
 	return tmp;
 }
 
-void *xmalloc(int size)
+void *xmalloc_(int size, char *a, int b)
 {
 	void *tmp = malloc(size);
 
 	if (!tmp)
-		oom_handler();
+		oom_handler(a, b);
 	
 	return tmp;
 }
 
-void xfree(void *ptr)
+void xfree_(void *ptr)
 {
 	if (ptr)
 		free(ptr);
 }
 
-void *xrealloc(void *ptr, int size)
+void *xrealloc_(void *ptr, int size, char *a, int b)
 {
 	void *tmp = realloc(ptr, size);
 
 	if (!tmp)
-		oom_handler();
+		oom_handler(a, b);
 
 	return tmp;
 }
 
-char *xstrdup(const char *s)
+char *xstrdup_(const char *s, char *a, int b)
 {
 	char *tmp;
 
@@ -77,7 +78,7 @@ char *xstrdup(const char *s)
 		return NULL;
 
 	if (!(tmp = strdup(s)))
-		oom_handler();
+		oom_handler(a, b);
 
 	return tmp;
 }

@@ -20,12 +20,16 @@
 #ifndef __XMALLOC_H
 #define __XMALLOC_H
 
-#define xcalloc(x,y) xcalloc_(x,y,__LINE__,__FILE__)
+#define xcalloc(x,y) xcalloc_(x,y,__FILE__,__LINE__)
+#define xmalloc(x) xmalloc_(x,__FILE__,__LINE__)
+#define xfree(x) xfree_(x,__FILE__,__LINE__)
+#define xrealloc(x,y) xrealloc_(x,y,__FILE__,__LINE__)
+#define xstrdup(x) xstrdup_(x,__FILE__,__LINE__)
 
-void *xcalloc_(int nmemb, int size, char *a, char *b);
-void *xmalloc_(int size);
-void xfree_(void *ptr);
-void *xrealloc_(void *ptr, int size);
-char *xstrdup_(const char *s);
+void *xcalloc_(int nmemb, int size, char *a, int b);
+void *xmalloc_(int size, char *a, int b);
+void xfree_(void *ptr, char *a, int b);
+void *xrealloc_(void *ptr, int size, char *a, int b);
+char *xstrdup_(const char *s, char *a, int b);
 
 #endif /* __XMALLOC_H */
