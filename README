@@ -1,0 +1,29 @@
+// uniksowy serwer gadu-gadu v0.1
+// (c) copyright 2002 wojtek kaniewski <wojtekka@irc.pl>
+
+g³upie, napisane w kilka godzin, ale dzia³a. przesy³a wiadomo¶ci,
+kolejkuje, informuje o zmianach stanu itd. nie ma trybu tylko dla
+znajomych, nie ma obs³ugi starszych klientów, ignorowania, ...
+
+je¶li nie wiesz, jak to uruchomiæ, jak tego u¿ywaæ, NIE PISZ DO MNIE!
+w najlepszym wypadku zostaniesz zignorowany, w najgorszym zwyzywany
+od analfabetów. ten kod to tylko i wy³±cznie demonstracja. nie jest
+przeznaczony dla zwyk³ych u¿ytkowników ani nawet dla administratorów.
+je¶li nie rozumiesz C, najlepiej skasuj, daj sobie spokój i nie
+zawracaj g³owy innym.
+
+nawet je¶li jeste¶ programist±, te¿ daj mi spokój. ten kod nie jest
+w ¿aden sposób wspierany, utrzymywany, ani cokolwiek takiego.
+
+w katalogu queue/ s± zapisywane wiadomo¶ci do u¿ytkowników, którzy
+nie byli dostêpni. format znajdziesz w msgqueue.c
+
+w katalogu passwd/ s± zapisywane has³a u¿ytkowników. jedna linia
+tekstu w pliku, którego nazwa jest numerem.
+
+w katalogu reasons/ s± zapisane powody niedostêpno¶ci niedostêpnych
+u¿ytkowników. i tak dalej.
+
+czego trzeba? dok³adniej sprawdzaæ b³êdy, katalog publiczny, hub,
+wielow±tkowo¶æ itd.
+
