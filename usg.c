@@ -1,3 +1,21 @@
+/*
+ *  (C) Copyright 2001-2002 Wojtek Kaniewski <wojtekka@irc.pl>
+ *                          Maurycy Paw³owski <maurycy@bofh.szczecin.pl>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License Version 2 as
+ *  published by the Free Software Foundation.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -42,7 +60,7 @@ void write_client_friends(client_t *c, void *buf, int len)
 		for (k = i->friends; k; k = k->next) {
 			friend_t *f = k->data;
 
-			if (f->uin == c->uin && !(f->flags & FLAG_BLOCKED)) {
+			if (f->uin == c->uin && !(f->flags & GG_USER_BLOCKED)) {
 				write_client(i, buf, len);
 				break;
 			}
@@ -60,6 +78,21 @@ client_t *find_client(int uin)
 
 		if (c->uin == uin)
 			return c;
+	}
+
+	return NULL;
+}
+
+/* szuka u danego klienta przyjaciela o podanym numerku */
+friend_t *find_friend(client_t *c, int uin)
+{
+	list_t l;
+
+	for (l = c->friends; l; l = l->next) {
+		friend_t *f = l->data;
+
+		if (f->uin == uin)
+			return f;
 	}
 
 	return NULL;
@@ -221,6 +254,11 @@ void handle_input_packet(client_t *c)
 
 			while (!unqueue_message(c->uin, &m)) {
 				struct gg_recv_msg r;
+				friend_t *f = find_friend(c, m.sender);
+
+				if (f)
+					if (f->flags & GG_USER_BLOCKED)
+						break;
 				
 				printf("sending queued message from %d to %d\n", m.sender, c->uin);
 				h.type = GG_RECV_MSG;
@@ -339,6 +377,11 @@ void handle_input_packet(client_t *c)
 				enqueue_message(s->recipient, c->uin, s->seq, s->msgclass, data + sizeof(*s), h->length - sizeof(*s));
 			} else {
 				struct gg_recv_msg r;
+				friend_t *f = find_friend(rcpt, c->uin);
+
+				if (f)
+					if (f->flags & GG_USER_BLOCKED)
+						break;
 
 				printf("sending message from %d to %d\n", c->uin, s->recipient);
 				
@@ -371,6 +414,7 @@ void handle_input_packet(client_t *c)
 		{
 			printf("received ping from %d\n", c->uin);
 			c->last_ping = time(NULL);
+			c->timeout = time(NULL) + 120;	/* + 2*timeout_ping */
 
 			break;
 		}
@@ -400,6 +444,7 @@ int handle_connection(client_t *c)
 	memset(&n, 0, sizeof(n));
 	n.fd = fd;
 	n.state = STATE_LOGIN;
+	n.timeout = time(NULL) + 180;	/* XXX + 3*timeout_ping */
 
 	h.type = GG_WELCOME;
 	h.length = sizeof(w);
@@ -596,7 +641,10 @@ int main(int argc, char **argv)
 			/* na wypadek usuniêcia aktualnego elementu */
 			n = l->next;
 
-			/* XXX zaimplementowaæ timeouty */
+			if (c->state == STATE_LOGIN && c->timeout <= time(NULL)) {
+				printf("timeout for uin=%d\n", c->uin); /* XXX brzydki komunikat */
+				remove_client(c);
+			}
 
 			for (i = 0; i < nfds; i++) {
 				if (ufds[i].fd == c->fd) {

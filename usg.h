@@ -29,7 +29,10 @@ typedef struct {
 	int remove;	/* usun±æ po wys³aniu danych? */
 } client_t;
 
-#define FLAG_BLOCKED 4
+enum friend_state_t {
+	GG_USER_NORMAL = 0x3,
+	GG_USER_BLOCKED,
+};
 
 typedef struct {
 	int uin;
