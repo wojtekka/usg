@@ -284,8 +284,10 @@ void handle_input_packet(client_t *c)
 			char buf[100];
 
 			c->status = s->status;
-			if (c->status_descr)
+			if (c->status_descr) {
 				xfree(c->status_descr);
+				c->status_descr = NULL;
+			}
 			if (h->length > sizeof(*s)) {
 				c->status_descr = xmalloc(h->length - sizeof(*s) + 1);
 				memcpy(c->status_descr, data + sizeof(*s), h->length - sizeof(*s));
