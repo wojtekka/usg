@@ -608,8 +608,6 @@ int main(int argc, char **argv)
 	cl.timeout = -1;
 	list_add(&clients, &cl, sizeof(cl));
 
-	xmalloc(1000000000);
-
 	while (1) {
 		list_t l, n;
 		int nfds = 0, i, ret;
