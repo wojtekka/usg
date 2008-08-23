@@ -207,8 +207,8 @@ void changed_status(client_t *c)
 /* obs³uguje przychodz±ce pakiety */
 void handle_input_packet(client_t *c)
 {
-	struct gg_header *h = (struct gg_header*) c->ibuf;
-	void *data = c->ibuf + sizeof(struct gg_header);
+	struct gg_header *h = (struct gg_header*) c->ibuf->str;
+	void *data = c->ibuf->str + sizeof(struct gg_header);
 
 	printf("uin %d, fd %d sent packet %.02x length %d\n", c->uin, c->fd, h->type, h->length);
 
@@ -419,6 +419,12 @@ void handle_input_packet(client_t *c)
 
 			break;
 		}
+
+		default:
+		{
+			printf("received unknown packet [%.2x] from %d\n", h->type, c->uin);
+			break;
+		}
 	}
 }
 
@@ -499,7 +505,7 @@ int handle_input(client_t *c)
 	printf("      ibuf->len = %d\n", c->ibuf->len);
 
 	while (c->ibuf->len >= 8) {
-		struct gg_header *h = (struct gg_header*) c->ibuf;
+		struct gg_header *h = (struct gg_header*) c->ibuf->str;
 		
 		if (h->length < 0 || h->length > 2500) {
 			remove_client(c);
@@ -606,7 +612,7 @@ int main(int argc, char **argv)
 
 			ufds[i].fd = c->fd;
 			ufds[i].events = POLLIN | POLLERR | POLLHUP;
-			if (c->obuf->len)
+			if (c->obuf && c->obuf->len)
 				ufds[i].events |= POLLOUT;
 			printf("poll: ufds[%d].fd = %d, ufds[%d].events = 0x%.2x\n", i, c->fd, i, ufds[i].events);
 		}
