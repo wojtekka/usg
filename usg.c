@@ -40,10 +40,7 @@ int obuf_len = 0, ibuf_len = 0, ufds_len = 0;
 /* wysy³a dane do danego klienta */
 void write_client(client_t *c, void *buf, int len)
 {
-	c->obuf = xrealloc(c->obuf, c->obuf_len + len);
-	memcpy(c->obuf + c->obuf_len, buf, len);
-	c->obuf_len += len;
-	obuf_len += len;
+	string_append_raw(c->obuf, (char *) buf, len);
 }
 
 /* wysy³a dane do wszystkich, którzy maj± go w userli¶cie */
@@ -179,6 +176,8 @@ void remove_client(client_t *c)
 
 	shutdown(c->fd, 2);
 	close(c->fd);
+	string_free(c->ibuf, 1);
+	string_free(c->obuf, 1);
 	list_remove(&clients, c, 1);
 }
 
@@ -451,6 +450,8 @@ int handle_connection(client_t *c)
 	h.type = GG_WELCOME;
 	h.length = sizeof(w);
 	n.seed = w.key = random();
+	n.ibuf = string_init(NULL);
+	n.obuf = string_init(NULL);
 
 	write_client(&n, &h, sizeof(h));
 	write_client(&n, &w, sizeof(w));
@@ -471,12 +472,8 @@ int handle_input(client_t *c)
 		res = read(c->fd, buf, sizeof(buf));
 		printf("read: fd=%d, res=%d\n", c->fd, res);
 
-		if (res > 0) {
-			c->ibuf = xrealloc(c->ibuf, c->ibuf_len + res);
-			memcpy(c->ibuf + c->ibuf_len, buf, res);
-			c->ibuf_len += res;
-			ibuf_len += res;
-		}
+		if (res > 0)
+			string_append_raw(c->ibuf, buf, res);
 
 		if (res == -1) {
 			if (errno == EAGAIN)
@@ -499,9 +496,9 @@ int handle_input(client_t *c)
 		first = 0;
 	}
 
-	printf("      ibuf_len = %d\n", c->ibuf_len);
+	printf("      ibuf->len = %d\n", c->ibuf->len);
 
-	while (c->ibuf_len >= 8) {
+	while (c->ibuf->len >= 8) {
 		struct gg_header *h = (struct gg_header*) c->ibuf;
 		
 		if (h->length < 0 || h->length > 2500) {
@@ -509,20 +506,12 @@ int handle_input(client_t *c)
 			return 1;
 		}
 		
-		if (c->ibuf_len >= 8 + h->length) {
+		if (c->ibuf->len >= 8 + h->length) {
 			handle_input_packet(c);
 
-			if (c->ibuf_len == 8 + h->length) {
-				xfree(c->ibuf);
-				c->ibuf_len = 0;
-				c->ibuf = NULL;
-				ibuf_len -= c->ibuf_len;
-			} else {
-				memmove(c->ibuf, c->ibuf + 8 + h->length, c->ibuf_len - 8 - h->length);
-				c->ibuf_len -= (8 + h->length);
-				ibuf_len -= (8 + h->length);
-			}
-		}
+			string_remove(c->ibuf, 8 + h->length);
+		} else
+			break;	/* czekaj na wiecej danych.. */
 	}
 
 	return 0;
@@ -533,29 +522,20 @@ int handle_output(client_t *c)
 {
 	int res;
 	
-	if (!c->obuf_len)
+	if (!c->obuf->len)
 		return 0;
 
-	res = write(c->fd, c->obuf, c->obuf_len);
+	res = write(c->fd, c->obuf->str, c->obuf->len);
 
 	if (res < 1) {
 		printf("write failed. removing client fd=%d\n", c->fd);
 		remove_client(c);
 		return 1;
 	}
-	
-	if (res >= c->obuf_len) {
-		xfree(c->obuf);
-		c->obuf = NULL;
-		c->obuf_len = 0;
-	} else {
-		memmove(c->obuf, c->obuf + res, c->obuf_len - res);
-		c->obuf = xrealloc(c->obuf, c->obuf_len - res);
-		c->obuf_len -= res;
-	}
-	obuf_len -= res;
 
-	if (!c->obuf_len && c->remove) {
+	string_remove(c->obuf, res);
+	
+	if (!c->obuf->len && c->remove) {
 		c->status = GG_STATUS_NOT_AVAIL;
 		remove_client(c);
 		return 1;
@@ -626,7 +606,7 @@ int main(int argc, char **argv)
 
 			ufds[i].fd = c->fd;
 			ufds[i].events = POLLIN | POLLERR | POLLHUP;
-			if (c->obuf_len)
+			if (c->obuf->len)
 				ufds[i].events |= POLLOUT;
 			printf("poll: ufds[%d].fd = %d, ufds[%d].events = 0x%.2x\n", i, c->fd, i, ufds[i].events);
 		}

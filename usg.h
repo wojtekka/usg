@@ -16,10 +16,8 @@ typedef struct {
 	int seed;	/* seed */
 	int status;	/* stan klienta */
 	char *status_descr;	/* opis stanu */
-	char *ibuf;	/* bufor wej¶ciowy */
-	int ibuf_len;
-	char *obuf;	/* bufor wyj¶ciowy */
-	int obuf_len;
+	string_t ibuf;	/* bufor wej¶ciowy */
+	string_t obuf;	/* bufor wyj¶ciowy */
 	unsigned long ip;	/* adres */
 	unsigned short port;	/* port */
 	int version;	/* wersja protoko³u */

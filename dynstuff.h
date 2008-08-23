@@ -38,8 +38,9 @@ int list_destroy(struct list *list, int free_data);
 
 struct string {
 	char *str;
-	int size;
+	int len, size;
 };
+
 
 typedef struct string * string_t;
 
@@ -47,6 +48,8 @@ struct string *string_init(const char *str);
 int string_append(struct string *s, const char *str);
 int string_append_n(struct string *s, const char *str, int count);
 int string_append_c(struct string *s, char ch);
+int string_append_raw(string_t s, const char *str, int count);
+void string_remove(string_t s, int count);
 char *string_free(struct string *s, int free_string);
 
 /* tablice stringów */

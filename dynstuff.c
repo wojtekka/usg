@@ -1,7 +1,8 @@
 /* $Id$ */
 
 /*
- *  (C) Copyright 2001-2002 Wojtek Kaniewski <wojtekka@irc.pl>
+ *  (C) Copyright 2001-2003 Wojtek Kaniewski <wojtekka@irc.pl>
+ *			    Dawid Jarosz <dawjar@poczta.onet.pl>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License Version 2 as
@@ -181,111 +182,121 @@ int list_destroy(struct list *list, int free_data)
 }
 
 /*
- * string_append_c()
+ * string_realloc()
  *
- * dodaje do danego ci±gu jeden znak, alokuj±c przy tym odpowiedni± ilo¶æ
- * pamiêci.
+ * upewnia siê, ¿e w stringu bêdzie wystarczaj±co du¿o miejsca.
  *
- *  - s - wska¼nik do `struct string',
- *  - c - znaczek do dopisania.
+ *  - s - ci±g znaków,
+ *  - count - wymagana ilo¶æ znaków (bez koñcowego '\0').
  */
-int string_append_c(struct string *s, char c)
+static void string_realloc(string_t s, int count)
 {
-	char *new;
+	char *tmp;
+	
+	if (s->str && (count + 1) <= s->size)
+		return;
+	
+	tmp = xrealloc(s->str, count + 81);
+	if (!s->str)
+		*tmp = 0;
+	tmp[count + 80] = 0;
+	s->size = count + 81;
+	s->str = tmp;
+}
 
+string_t string_init(const char *value) {
+	string_t tmp = xmalloc(sizeof(struct string));
+	size_t valuelen;
+
+	if (!value)
+		value = "";
+
+	valuelen = strlen(value);
+
+	tmp->str = xstrdup(value);
+	tmp->len = valuelen;
+	tmp->size = valuelen + 1;
+
+	return tmp;
+}
+
+int string_append_c(string_t s, char c)
+{
 	if (!s) {
 		errno = EFAULT;
 		return -1;
 	}
 	
-	if (!s->str || strlen(s->str) + 2 > s->size) {
-		new = xrealloc(s->str, s->size + 80);
-		if (!s->str)
-			*new = 0;
-		s->size += 80;
-		s->str = new;
-	}
+	string_realloc(s, s->len + 1);
 
-	s->str[strlen(s->str) + 1] = 0;
-	s->str[strlen(s->str)] = c;
+	s->str[s->len + 1] = 0;
+	s->str[s->len++] = c;
 
 	return 0;
 }
 
-/*
- * string_append_n()
- *
- * dodaje tekst do bufora alokuj±c odpowiedni± ilo¶æ pamiêci.
- *
- *  - s - wska¼nik `struct string',
- *  - str - tekst do dopisania,
- *  - count - ile znaków tego tekstu dopisaæ? (-1 znaczy, ¿e ca³y).
- */
-int string_append_n(struct string *s, const char *str, int count)
+int string_append_n(string_t s, const char *str, int count)
 {
-	char *new;
-
-	if (!s) {
+	if (!s || !str || count < 0) {
 		errno = EFAULT;
 		return -1;
 	}
 
-	if (count == -1)
-		count = strlen(str);
+	string_realloc(s, s->len + count);
 
-	if (!s->str || strlen(s->str) + count + 1 > s->size) {
-		new = xrealloc(s->str, s->size + count + 80);
-		if (!s->str)
-			*new = 0;
-		s->size += count + 80;
-		s->str = new;
-	}
+	s->str[s->len + count] = 0;
+	strncpy(s->str + s->len, str, count);
 
-	s->str[strlen(s->str) + count] = 0;
-	strncpy(s->str + strlen(s->str), str, count);
+	s->len += count;
 
 	return 0;
 }
 
-int string_append(struct string *s, const char *str)
+int string_append_raw(string_t s, const char *str, int count)
 {
-	return string_append_n(s, str, -1);
+	if (!s || !str || count < 0) {
+		errno = EFAULT;
+		return -1;
+	}
+
+	string_realloc(s, s->len + count);
+
+	s->str[s->len + count] = 0;
+	memcpy(s->str + s->len, str, count);
+
+	s->len += count;
+
+	return 0;
 }
 
-/*
- * string_init()
- *
- * inicjuje strukturê string. alokuje pamiêæ i przypisuje pierwsz± warto¶æ.
- *
- *  - value - je¶li NULL, ci±g jest pusty, inaczej kopiuje tam.
- *
- * zwraca zaalokowan± strukturê `string'.
- */
-struct string *string_init(const char *value)
+int string_append(string_t s, const char *str)
 {
-	struct string *tmp = xmalloc(sizeof(struct string));
+	if (!s || !str) {
+		errno = EFAULT;
+		return -1;
+	}
 
-	if (!value)
-		value = "";
-
-	tmp->str = xstrdup(value);
-	tmp->size = strlen(value) + 1;
-
-	return tmp;
+	return string_append_n(s, str, strlen(str));
 }
 
-/*
- * string_free()
- *
- * zwalnia pamiêæ po strukturze string i mo¿e te¿ zwolniæ pamiêæ po samym
- * ci±gu znaków.
- *
- *  - s - struktura, któr± wycinamy,
- *  - free_string - zwolniæ pamiêæ po ci±gu znaków?
- *
- * je¶li free_string=0 zwraca wska¼nik do ci±gu, inaczej NULL.
- */
-char *string_free(struct string *s, int free_string)
+void string_remove(string_t s, int count)
+{
+	if (!s || count <= 0)
+		return;
+	
+	if (count >= s->len) {
+		/* string_clear() */
+		s->str[0]	= '\0';
+		s->len		= 0;
+
+	} else {
+		memmove(s->str, s->str + count, s->len - count);
+		s->len -= count;
+		s->str[s->len] = '\0';
+	}
+}
+
+char *string_free(string_t s, int free_string)
 {
 	char *tmp = NULL;
 
@@ -293,11 +304,11 @@ char *string_free(struct string *s, int free_string)
 		return NULL;
 
 	if (free_string)
-		free(s->str);
+		xfree(s->str);
 	else
 		tmp = s->str;
 
-	free(s);
+	xfree(s);
 
 	return tmp;
 }
