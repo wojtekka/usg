@@ -42,6 +42,17 @@ void write_client(client_t *c, void *buf, int len)
 	string_append_raw(c->obuf, (char *) buf, len);
 }
 
+void write_full_packet(client_t *c, int type, void *buf, int len)
+{
+	struct gg_header h;
+
+	h.type = type;
+	h.length = len;
+
+	write_client(c, &h, sizeof(h));
+	write_client(c, buf, len);
+}
+
 /* wysy³a dane do wszystkich, którzy maj± go w userli¶cie */
 void write_client_friends(client_t *c, void *buf, int len)
 {
@@ -145,7 +156,6 @@ int handle_connection(client_t *c)
 	client_t n;
 	struct sockaddr_in sin;
 	int fd, sin_len = sizeof(sin), nb = 1;
-	struct gg_header h;
 	struct gg_welcome w;
 
 	if ((fd = accept(c->fd, (struct sockaddr*) &sin, &sin_len)) == -1) {
@@ -162,17 +172,14 @@ int handle_connection(client_t *c)
 	memset(&n, 0, sizeof(n));
 	n.fd = fd;
 	n.state = STATE_LOGIN;
-	n.timeout = time(NULL) + 180;	/* XXX + 3*timeout_ping */
+	n.timeout = time(NULL) + TIMEOUT_CONNECT;
 
-	h.type = GG_WELCOME;
-	h.length = sizeof(w);
 	n.seed = w.key = random();
 	n.ibuf = string_init(NULL);
 	n.obuf = string_init(NULL);
 
-	write_client(&n, &h, sizeof(h));
-	write_client(&n, &w, sizeof(w));
-	
+	write_full_packet(&n, GG_WELCOME, &w, sizeof(w));
+
 	list_add(&clients, &n, sizeof(n));
 
 	return 0;

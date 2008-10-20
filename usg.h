@@ -42,5 +42,6 @@ list_t clients;
 
 client_t *find_client(int uin);
 void write_client(client_t *c, void *buf, int len);
+void write_full_packet(client_t *c, int type, void *buf, int len);
 
 #endif

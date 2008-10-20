@@ -102,7 +102,7 @@ static int gg_ping_handler(client_t *c, void *data, uint32_t len) {
 	printf("received ping from %d\n", c->uin);
 
 	c->last_ping = time(NULL);
-	c->timeout = time(NULL) + 120;	/* + 2*timeout_ping */
+	c->timeout = time(NULL) + TIMEOUT_DEFAULT;
 
 	return 0;
 }
@@ -122,9 +122,7 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 	c->uin = uin;
 	c->state = STATE_LOGIN_OK;
 
-	h.type = GG_LOGIN_OK;
-	h.length = 0;
-	write_client(c, &h, sizeof(h));
+	write_full_packet(c, GG_LOGIN_OK, NULL, 0);
 
 	while (!unqueue_message(c->uin, &m)) {
 		struct gg_recv_msg r;
@@ -151,11 +149,8 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 }
 
 static void gg_login_failed(client_t *c) {
-	struct gg_header h;
+	write_full_packet(c, GG_LOGIN_FAILED, NULL, 0);
 
-	h.type = GG_LOGIN_FAILED;
-	h.length = 0;
-	write_client(c, &h, sizeof(h));
 	printf("failed, sending reject\n");
 	c->remove = 1;
 }
@@ -305,11 +300,6 @@ static int gg_login80_handler(client_t *c, void *data, uint32_t len) {
 	return 0;
 }
 
-static int gg_list_empty_handler(client_t *c, void *data, uint32_t len) {
-
-	return 0;
-}
-
 static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_notify *n = data;
 	int i;
@@ -341,6 +331,11 @@ static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
 		list_add(&c->friends, &f, sizeof(f));
 		notify_reply(c, f.uin);
 	}
+	return 0;
+}
+
+static int gg_list_empty_handler(client_t *c, void *data, uint32_t len) {
+
 	return 0;
 }
 
@@ -447,13 +442,11 @@ static int gg_send_msg_handler(client_t *c, void *data, uint32_t len) {
 	}
 
 	printf("sending ack back to %d\n", c->uin);
-	h.type = GG_SEND_MSG_ACK;
-	h.length = sizeof(a);
 	a.status = ack;
 	a.recipient = s->recipient;
 	a.seq = s->seq;
-	write_client(c, &h, sizeof(h));
-	write_client(c, &a, sizeof(a));
+
+	write_full_packet(c, GG_SEND_MSG_ACK, &a, sizeof(a));
 
 	return 0;
 }
@@ -474,14 +467,13 @@ static const gg_handlers[] =
 	{ GG_LOGIN80,	gg_login80_handler },
 
 	/* userlist */
-	{ GG_LIST_EMPTY, 	gg_list_empty_handler },
 	{ GG_NOTIFY_FIRST,	gg_notify_handler },
 	{ GG_NOTIFY_LAST,	gg_notify_end_handler },
-
+	{ GG_LIST_EMPTY, 	gg_list_empty_handler },
 	{ GG_ADD_NOTIFY,	gg_notify_add_handler },
 	{ GG_REMOVE_NOTIFY,	gg_notify_remove_handler },
 
-	{ GG_NEW_STATUS,gg_new_status_handler },
+	{ GG_NEW_STATUS,	gg_new_status_handler },
 
 	/* wiadomosc */
 	{ GG_SEND_MSG,	gg_send_msg_handler },
