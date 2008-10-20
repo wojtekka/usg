@@ -35,7 +35,6 @@
 #include "msgqueue.h"
 
 list_t clients = NULL;
-int obuf_len = 0, ibuf_len = 0, ufds_len = 0;
 
 /* wysy³a dane do danego klienta */
 void write_client(client_t *c, void *buf, int len)

@@ -29,7 +29,7 @@ extern int ibuf_len, obuf_len;
 
 static void oom_handler(char *a, int b)
 {
-	fprintf(stderr, "Out of memory in %s:%d\nInput buffers: %d bytes, output buffers: %d bytes\nDumping core, so you could backtrace it with gdb\n\n", a, b, ibuf_len, obuf_len);
+	fprintf(stderr, "Out of memory in %s:%d\nDumping core, so you could backtrace it with gdb\n\n", a, b);
 
 	raise(SIGSEGV);
 }
