@@ -20,11 +20,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <pwd.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+#include <openssl/sha.h>
+
 #include "usg.h"
 
-unsigned int gg_login_hash(const unsigned char *password, unsigned int seed)
+unsigned int gg_login_hash(const char *pass, unsigned int seed)
 {
+	const unsigned char *password = (const unsigned char *) pass;
+
 	unsigned int x, y, z;
 
 	y = seed;
@@ -47,35 +55,80 @@ unsigned int gg_login_hash(const unsigned char *password, unsigned int seed)
 	return y;
 }
 
-int authorize(int uin, int seed, unsigned long response)
+void gg_login_hash_sha1(const char *pass, unsigned int seed, unsigned char *result)
 {
+	SHA_CTX ctx;
+	
+	SHA1_Init(&ctx);
+	SHA1_Update(&ctx, (const unsigned char*) pass, strlen(pass));
+	SHA1_Update(&ctx, (unsigned char *) &seed, 4);
+	
+	SHA1_Final(result, &ctx);
+}
+
+const char *get_password(int uin) {
 	FILE *f;
-	char buf[100];
+	struct passwd *p;
+
+	if (!(f = fopen("passwd", "r"))) {
+		printf("auth attempt: file passwd doesn't exists!\n");
+		return NULL;
+	}
+
+	while ((p = fgetpwent(f))) {
+		if (p->pw_uid == uin)
+			return p->pw_passwd;
+	}
+	return NULL;
+}
+
+int authorize(int uin, unsigned int seed, unsigned long response)
+{
+	const char *password;
 	unsigned long hash;
 
-	snprintf(buf, sizeof(buf), "passwd/%d", uin);
-
-	if (!(f = fopen(buf, "r"))) {
-		printf("auth attempt: uin %d not found in passwd repo\n", uin);
+	if (!(password = get_password(uin))) {
+		printf("auth attempt: uin %d not found in passwd repo, or empty password\n", uin);
 		return 0;
 	}
 
-	if (!fgets(buf, sizeof(buf), f)) {
-		printf("auth attempt: empty password file for %d\n", uin);
-		fclose(f);
-		return 0;
-	}
+	hash = gg_login_hash(password, seed);
 
-	fclose(f);
-
-	if (buf[strlen(buf) - 1] == '\n')
-		buf[strlen(buf) - 1] = 0;
-	if (buf[strlen(buf) - 1] == '\r')
-		buf[strlen(buf) - 1] = 0;
-
-	hash = gg_login_hash(buf, seed);
-
-	printf("auth attempt: seed=%d, pass=\"%s\", myhash=%ld, hishash=%ld\n", seed, buf, hash, response);
+	printf("auth attempt: seed=%d, pass=\"%s\", myhash=%ld, hishash=%ld\n", seed, password, hash, response);
 
 	return (hash == response);
 }
+
+int authorize70(int uin, unsigned int seed, unsigned int type, unsigned char *response)
+{
+	unsigned char hash[20];
+
+	char myhash[41];
+	char hishash[41];
+	int i;
+
+	const char *password;
+
+	if (!(password = get_password(uin))) {
+		printf("auth attempt: uin %d not found in passwd repo, or empty password\n", uin);
+		return 0;
+	}
+
+	/* XXX, type */
+
+	gg_login_hash_sha1(password, seed, hash);
+
+	for (i = 0; i < 40; i += 2) {
+		snprintf(hishash + i, sizeof(hishash) - i, "%02x", response[i / 2]);
+		snprintf(myhash + i, sizeof(myhash) - i, "%02x", hash[i / 2]);
+	}
+
+	printf("auth attempt: seed=%d, pass=\"%s\", myhash=%s, hishash=%s\n", seed, password, myhash, hishash);
+
+	for (i = 0; i < 20; i++) {
+		if (response[i] != hash[i])
+			return 0;
+	}
+	return 1;
+}
+

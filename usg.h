@@ -7,6 +7,7 @@ enum client_state_t {
 	STATE_NONE = 0,
 	STATE_LISTENING,
 	STATE_LOGIN,
+	STATE_LOGIN_OK
 };
 
 typedef struct {
@@ -38,5 +39,8 @@ typedef struct {
 } friend_t;
 
 list_t clients;
+
+client_t *find_client(int uin);
+void write_client(client_t *c, void *buf, int len);
 
 #endif

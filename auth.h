@@ -3,6 +3,7 @@
 
 #include "usg.h"
 
-int authorize(int uin, int seed, unsigned long response);
+int authorize(int uin, unsigned int seed, unsigned long response);
+int authorize70(int uin, unsigned int seed, unsigned int type, unsigned char *response);
 
 #endif

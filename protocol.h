@@ -1,10 +1,12 @@
 /* $Id$ */
 
 /*
- *  (C) Copyright 2001-2002 Wojtek Kaniewski <wojtekka@irc.pl>,
+ *  (C) Copyright 2001-2003 Wojtek Kaniewski <wojtekka@irc.pl>,
  *                          Robert J. Wo¼ny <speedy@ziew.org>,
  *                          Arkadiusz Mi¶kiewicz <misiek@pld.org.pl>,
  *                          Tomasz Chiliñski <chilek@chilan.com>
+ *                          Piotr Wysocki <wysek@linux.bydg.org>
+ *                          Dawid Jarosz <dawjar@poczta.onet.pl>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU Lesser General Public License Version
@@ -40,15 +42,61 @@ struct gg_welcome {
 } __attribute__ ((packed));
 	
 #define GG_LOGIN 0x000c
-#define GG_LOGIN_FWD 0x0013
 
 struct gg_login {
-	uint32_t uin;			/* twój numerek */
+	uint32_t uin;			/* mój numerek */
 	uint32_t hash;			/* hash has³a */
 	uint32_t status;		/* status na dzieñ dobry */
 	uint32_t version;		/* moja wersja klienta */
 	uint32_t local_ip;		/* mój adres ip */
 	uint16_t local_port;		/* port, na którym s³ucham */
+} __attribute__ ((packed));
+
+#define GG_LOGIN_EXT 0x0013
+
+struct gg_login_ext {
+	uint32_t uin;			/* mój numerek */
+	uint32_t hash;			/* hash has³a */
+	uint32_t status;		/* status na dzieñ dobry */
+	uint32_t version;		/* moja wersja klienta */
+	uint32_t local_ip;		/* mój adres ip */
+	uint16_t local_port;		/* port, na którym s³ucham */
+	uint32_t external_ip;		/* zewnêtrzny adres ip */
+	uint16_t external_port;		/* zewnêtrzny port */
+} __attribute__ ((packed));
+
+#define GG_LOGIN60 0x0015
+
+struct gg_login60 {
+	uint32_t uin;			/* mój numerek */
+	uint32_t hash;			/* hash has³a */
+	uint32_t status;		/* status na dzieñ dobry */
+	uint32_t version;		/* moja wersja klienta */
+	uint8_t dunno1;			/* 0x00 */
+	uint32_t local_ip;		/* mój adres ip */
+	uint16_t local_port;		/* port, na którym s³ucham */
+	uint32_t external_ip;		/* zewnêtrzny adres ip */
+	uint16_t external_port;		/* zewnêtrzny port */
+	uint8_t image_size;		/* maksymalny rozmiar grafiki w KiB */
+	uint8_t dunno2;			/* 0xbe */
+} __attribute__ ((packed));
+
+#define GG_LOGIN70 0x0019
+#define GG_LOGIN80 0x0029
+
+struct gg_login70 {
+	uint32_t uin;			/* mój numerek */
+	uint8_t hash_type;		/* rodzaj hashowania has³a */
+	uint8_t hash[64];		/* hash has³a dope³niony zerami */
+	uint32_t status;		/* status na dzieñ dobry */
+	uint32_t version;		/* moja wersja klienta */
+	uint8_t dunno1;			/* 0x00 */
+	uint32_t local_ip;		/* mój adres ip */
+	uint16_t local_port;		/* port, na którym s³ucham */
+	uint32_t external_ip;		/* zewnêtrzny adres ip (???) */
+	uint16_t external_port;		/* zewnêtrzny port (???) */
+	uint8_t image_size;		/* maksymalny rozmiar grafiki w KiB */
+	uint8_t dunno2;			/* 0xbe */
 } __attribute__ ((packed));
 
 #define GG_LOGIN_OK 0x0003
@@ -72,13 +120,15 @@ struct gg_new_status {
 	uint32_t status;			/* na jaki zmieniæ? */
 } __attribute__ ((packed));
 
+#define GG_LIST_EMPTY 0x0012
+
 #define GG_NOTIFY 0x0010
 	
 struct gg_notify {
 	uint32_t uin;				/* numerek danej osoby */
 	uint8_t dunno1;			/* == 3 */
 } __attribute__ ((packed));
-	
+
 #define GG_NOTIFY_REPLY 0x000c	/* tak, to samo co GG_LOGIN */
 	
 struct gg_notify_reply {
