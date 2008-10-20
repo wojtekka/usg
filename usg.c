@@ -99,6 +99,8 @@ void remove_client(client_t *c)
 	close(c->fd);
 	string_free(c->ibuf, 1);
 	string_free(c->obuf, 1);
+	xfree(c->status_descr);
+	list_destroy(c->friends, 1);
 	list_remove(&clients, c, 1);
 }
 

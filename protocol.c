@@ -287,18 +287,25 @@ static int gg_list_empty_handler(client_t *c, void *data, uint32_t len) {
 }
 
 static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
-	struct gg_add_remove *ar = data;
+	struct gg_add_remove *ar = (struct gg_add_remove *) data;
 	friend_t f;
+
+	if (len < sizeof(struct gg_add_remove))
+		return -1;
 
 	printf("adding notify on %d for %d\n", ar->uin, c->uin);
 
-	f.uin = ar->uin;
-	f.flags = ar->dunno1;
-
-	if (f.uin == 0) {
-		/* XXX? zobaczyc jak reaguje oryginalny serwer */
+	if (ar->uin == 0) {
+		/* oryginalny serwer nie wiadomo co robi, my po prostu ignorujemy taki pakiet */
 		return 1;
 	}
+
+	/* XXX, czy moze wystepowac wiecej niz 1 numerek w pakiecie? 
+	 * 	libgadu nie umie wysylac, potestowac z oryginalnym serwerem
+	 */
+
+	f.uin = ar->uin;
+	f.flags = ar->dunno1;
 
 	list_add(&c->friends, &f, sizeof(f));
 	c->notify_reply(c, f.uin);
@@ -432,7 +439,7 @@ static const gg_handlers[] =
 	{ GG_NOTIFY_FIRST,	gg_notify_handler },
 	{ GG_NOTIFY_LAST,	gg_notify_end_handler },
 	{ GG_LIST_EMPTY, 	gg_list_empty_handler },
-	{ GG_ADD_NOTIFY,	gg_notify_add_handler },
+	{ GG_ADD_NOTIFY,	gg_notify_add_handler },		/* ok */
 	{ GG_REMOVE_NOTIFY,	gg_notify_remove_handler },
 
 	/* statusy.. */
