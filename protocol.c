@@ -327,6 +327,23 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 	return 0;
 }
 
+static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
+	struct gg_notify *n = data;
+	int i;
+
+	printf("received notify list from %d\n", c->uin);
+
+	for (i = 0; i < len / sizeof(*n); i++) {
+		friend_t f;
+
+		f.uin = n[i].uin;
+		f.flags = n[i].dunno1;
+		list_add(&c->friends, &f, sizeof(f));
+		notify_reply(c, f.uin);
+	}
+	return 0;
+}
+
 static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_add_remove *ar = data;
 	friend_t f;
@@ -458,7 +475,8 @@ static const gg_handlers[] =
 
 	/* userlist */
 	{ GG_LIST_EMPTY, 	gg_list_empty_handler },
-	{ GG_NOTIFY,		gg_notify_handler },
+	{ GG_NOTIFY_FIRST,	gg_notify_handler },
+	{ GG_NOTIFY_LAST,	gg_notify_end_handler },
 
 	{ GG_ADD_NOTIFY,	gg_notify_add_handler },
 	{ GG_REMOVE_NOTIFY,	gg_notify_remove_handler },

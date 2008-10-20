@@ -283,10 +283,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
 		perror("setsockopt");
-		return 1;
-	}
 	
 	sin.sin_port = htons(8074);
 	sin.sin_addr.s_addr = INADDR_ANY;
@@ -294,11 +292,13 @@ int main(int argc, char **argv)
 
 	if (bind(sock, (struct sockaddr*) &sin, sizeof(sin))) {
 		perror("bind");
+		close(sock);
 		return 1;
 	}
 
 	if (listen(sock, 100)) {
 		perror("listen");
+		close(sock);
 		return 1;
 	}
 
@@ -309,9 +309,9 @@ int main(int argc, char **argv)
 	list_add(&clients, &cl, sizeof(cl));
 
 	while (1) {
-		list_t l, n;
 		int nfds = 0, i, ret;
 		struct pollfd *ufds;
+		list_t l;
 
 		for (nfds = 0, l = clients; l; l = l->next)
 			nfds++;
@@ -337,11 +337,11 @@ int main(int argc, char **argv)
 			return 1;
 		}
 
-		for (l = clients; l; l = n) {
+		for (l = clients; l;) {
 			client_t *c = l->data;
 
 			/* na wypadek usuniêcia aktualnego elementu */
-			n = l->next;
+			l = l->next;
 
 			if ((c->state == STATE_LOGIN || c->state == STATE_LOGIN_OK) && c->timeout <= time(NULL)) {
 				printf("timeout for uin=%d\n", c->uin); /* XXX brzydki komunikat */

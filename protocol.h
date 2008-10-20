@@ -122,7 +122,8 @@ struct gg_new_status {
 
 #define GG_LIST_EMPTY 0x0012
 
-#define GG_NOTIFY 0x0010
+#define GG_NOTIFY_FIRST 0x000f
+#define GG_NOTIFY_LAST 0x0010
 	
 struct gg_notify {
 	uint32_t uin;				/* numerek danej osoby */
