@@ -108,15 +108,17 @@ static int gg_ping_handler(client_t *c, void *data, uint32_t len) {
 }
 
 static void gg_login_ok(client_t *c, uint32_t uin) {
+	client_t *old_client;
+
 	struct gg_header h;
 	msgqueue_t m;
 
 	printf("succeded!\n");
 
-	if (find_client(uin)) {
+	if ((old_client = find_client(uin))) {
 		printf("duplicate client, removing previous\n");
 		/* XXX kopie się */
-		remove_client(find_client(uin));
+		remove_client(old_client);
 	}
 
 	c->uin = uin;
@@ -313,13 +315,13 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 		f.uin = n[i].uin;
 		f.flags = n[i].dunno1;
 		list_add(&c->friends, &f, sizeof(f));
-		notify_reply(c, f.uin);
 	}
 	return 0;
 }
 
 static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_notify *n = data;
+	list_t l;
 	int i;
 
 	printf("received notify list from %d\n", c->uin);
@@ -330,8 +332,15 @@ static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
 		f.uin = n[i].uin;
 		f.flags = n[i].dunno1;
 		list_add(&c->friends, &f, sizeof(f));
-		notify_reply(c, f.uin);
 	}
+
+	/* XXX */
+	for (l = c->friends; l; l = l->next) {
+		friend_t *f = l->data;
+		
+		notify_reply(c, f->uin);
+	}
+
 	return 0;
 }
 

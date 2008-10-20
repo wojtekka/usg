@@ -52,11 +52,6 @@ int string_append_raw(string_t s, const char *str, int count);
 void string_remove(string_t s, int count);
 char *string_free(struct string *s, int free_string);
 
-/* tablice stringów */
-
-char **array_make(const char *string, const char *sep, int max, int trim, int quotes);
-void array_free(char **array);
-
 /* rozszerzenia libców */
 
 const char *itoa(long int i);

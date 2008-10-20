@@ -108,15 +108,11 @@ friend_t *find_friend(client_t *c, int uin)
 /* usuwa klienta, zamyka po³±czneie itd. */
 void remove_client(client_t *c)
 {
-	if (c->status != GG_STATUS_NOT_AVAIL && c->status != GG_STATUS_NOT_AVAIL_DESCR && c->status != GG_STATUS_INVISIBLE && c->status != GG_STATUS_INVISIBLE_DESCR) {
-		struct gg_header h;
-		struct gg_status s;
-		h.type = GG_STATUS;
-		h.length = sizeof(s);
-		s.uin = c->uin;
-		s.status = GG_STATUS_NOT_AVAIL;
-		write_client_friends(c, &h, sizeof(h));
-		write_client_friends(c, &s, sizeof(s));
+	if (c->state == STATE_LOGIN_OK &&
+		(c->status != GG_STATUS_NOT_AVAIL && c->status != GG_STATUS_NOT_AVAIL_DESCR && c->status != GG_STATUS_INVISIBLE && c->status != GG_STATUS_INVISIBLE_DESCR))
+	{
+			c->status = (c->status_descr) ? GG_STATUS_NOT_AVAIL_DESCR : GG_STATUS_NOT_AVAIL;
+			changed_status(c);
 	}
 
 	shutdown(c->fd, 2);
