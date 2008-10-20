@@ -34,70 +34,6 @@
 #include "auth.h"
 #include "msgqueue.h"
 
-/* jeśli klient dopisał kogoś do swojej userlisty, odpowiadamy, jeśli jest */
-void notify_reply(client_t *c, int uin) {
-	struct gg_header h;
-	struct gg_notify_reply n;
-	client_t *f;
-
-	if (uin == c->uin)
-		return;
-
-	/* jeśli nie jest połączony, zobacz, czy nie zostawił opisu */
-	if (!(f = find_client(uin))) {
-		static client_t dummy;
-		char buf[100];
-		FILE *fd;
-
-		memset(&dummy, 0, sizeof(dummy));
-
-		f = &dummy;
-		f->status = GG_STATUS_NOT_AVAIL;
-		f->uin = uin;
-		
-		snprintf(buf, sizeof(buf), "reasons/%d", uin);
-		
-		if ((fd = fopen(buf, "r"))) {
-			if (fgets(buf, sizeof(buf), fd)) {
-				f->status = GG_STATUS_NOT_AVAIL_DESCR;
-				f->status_descr = buf;
-			}
-			fclose(fd);
-		}
-	}
-
-	if (f->status == GG_STATUS_NOT_AVAIL || f->status == GG_STATUS_INVISIBLE)
-		return;
-	
-	if (f->status == GG_STATUS_NOT_AVAIL_DESCR || f->status == GG_STATUS_INVISIBLE_DESCR) {
-		struct gg_status s;
-
-		h.type = GG_STATUS;
-		h.length = sizeof(s) + ((f->status_descr) ? strlen(f->status_descr) : 0);
-		s.status = f->status;
-		if (s.status == GG_STATUS_INVISIBLE_DESCR)
-			s.status = GG_STATUS_NOT_AVAIL_DESCR;
-		s.uin = f->uin;
-		write_client(c, &h, sizeof(h));
-		write_client(c, &s, sizeof(s));
-		write_client(c, f->status_descr, strlen(f->status_descr));
-	} else {
-		h.type = GG_NOTIFY_REPLY;
-		h.length = sizeof(n) + ((f->status_descr) ? strlen(f->status_descr) : 0);
-		n.uin = f->uin;
-		n.status = f->status;
-		n.remote_ip = f->ip;
-		n.remote_port = f->port;
-		n.version = f->version;
-		n.dunno2 = f->port;
-	
-		write_client(c, &h, sizeof(h));
-		write_client(c, &n, sizeof(n));
-		if (f->status_descr)
-			write_client(c, f->status_descr, strlen(f->status_descr));
-	}
-}
-
 static int gg_ping_handler(client_t *c, void *data, uint32_t len) {
 	printf("received ping from %d\n", c->uin);
 
@@ -127,13 +63,15 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 
 	write_full_packet(c, GG_LOGIN_OK, NULL, 0);
 
+	/* XXX, sprawdzic czy w dobrym miejscu */
 	while (!unqueue_message(c->uin, &m)) {
 		struct gg_recv_msg r;
-		friend_t *f = find_friend(c, m.sender);
+		friend_t *f;
 
-		if (f)
+		if ((f = find_friend(c, m.sender))) {
 			if (f->flags & GG_USER_BLOCKED)
 				break;
+		}
 
 		printf("sending queued message from %d to %d\n", m.sender, c->uin);
 		h.type = GG_RECV_MSG;
@@ -265,10 +203,14 @@ static int gg_login70_handler(client_t *c, void *data, uint32_t len) {
 
 	gg_login_ok(c, l->uin);
 
-	c->status = l->status;
-	c->version = l->version;
-	c->ip = l->local_ip;
-	c->port = l->local_port;
+	c->status	= l->status;
+	c->version	= l->version;
+	c->ip		= l->local_ip;
+	c->port		= l->local_port;
+	c->image_size	= l->image_size;
+
+	/* XXX, dunno1: 0x00, dunno2: 0xbe, external_ip, external_port */
+	/* XXX, status */
 
 	changed_status(c);
 	return 0;
@@ -334,12 +276,7 @@ static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
 		list_add(&c->friends, &f, sizeof(f));
 	}
 
-	/* XXX */
-	for (l = c->friends; l; l = l->next) {
-		friend_t *f = l->data;
-		
-		notify_reply(c, f->uin);
-	}
+	c->notify_reply(c, 0);
 
 	return 0;
 }
@@ -357,8 +294,14 @@ static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
 
 	f.uin = ar->uin;
 	f.flags = ar->dunno1;
+
+	if (f.uin == 0) {
+		/* XXX? zobaczyc jak reaguje oryginalny serwer */
+		return 1;
+	}
+
 	list_add(&c->friends, &f, sizeof(f));
-	notify_reply(c, f.uin);
+	c->notify_reply(c, f.uin);
 
 	return 0;
 }
@@ -381,7 +324,7 @@ static int gg_notify_remove_handler(client_t *c, void *data, uint32_t len) {
 }
 
 static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
-	struct gg_new_status *s = data;
+	struct gg_new_status *s = (struct gg_new_status *) data;
 	char buf[100];
 
 	c->status = s->status;
@@ -482,7 +425,7 @@ static const gg_handlers[] =
 	{ GG_LOGIN,	gg_login_handler },
 	{ GG_LOGIN_EXT, gg_login_ext_handler },
 	{ GG_LOGIN60,	gg_login60_handler },
-	{ GG_LOGIN70,	gg_login70_handler },
+	{ GG_LOGIN70,	gg_login70_handler },				/* almost-ok */
 	{ GG_LOGIN80,	gg_login80_handler },
 
 	/* userlista */

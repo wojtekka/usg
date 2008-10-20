@@ -141,6 +141,20 @@ struct gg_notify_reply {
 	uint16_t dunno2;		/* znowu port? */
 } __attribute__ ((packed));
 
+#define GG_NOTIFY_REPLY77 0x0018
+#define GG_NOTIFY_REPLY80 0x002b
+
+struct gg_notify_reply77 {
+	uint32_t uin;			/* numerek plus flagi w MSB */
+	uint8_t status;			/* status danej osoby */
+	uint32_t remote_ip;		/* adres ip delikwenta */
+	uint16_t remote_port;		/* port, na którym s³ucha klient */
+	uint8_t version;		/* wersja klienta */
+	uint8_t image_size;		/* maksymalny rozmiar grafiki w KiB */
+	uint8_t dunno1;			/* 0x00 */
+	uint32_t dunno2;		/* ? */
+} __attribute__ ((packed));
+
 #define GG_ADD_NOTIFY 0x000d
 #define GG_REMOVE_NOTIFY 0x000e
 	
@@ -155,7 +169,21 @@ struct gg_status {
 	uint32_t uin;			/* numerek */
 	uint32_t status;		/* nowy stan */
 } __attribute__ ((packed));
-	
+
+#define GG_STATUS77 0x0017
+#define GG_STATUS80 0x002a
+
+struct gg_status77 {
+	uint32_t uin;			/* numerek plus flagi w MSB */
+	uint8_t status;			/* status danej osoby */
+	uint32_t remote_ip;		/* adres ip delikwenta */
+	uint16_t remote_port;		/* port, na którym s³ucha klient */
+	uint8_t version;		/* wersja klienta */
+	uint8_t image_size;		/* maksymalny rozmiar grafiki w KiB */
+	uint8_t dunno1;			/* 0x00 */
+	uint32_t dunno2;		/* ? */
+} __attribute__ ((packed));
+
 #define GG_SEND_MSG 0x000b
 
 #define GG_CLASS_QUEUED 0x0001

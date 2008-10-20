@@ -53,28 +53,6 @@ void write_full_packet(client_t *c, int type, void *buf, int len)
 	write_client(c, buf, len);
 }
 
-/* wysy³a dane do wszystkich, którzy maj± go w userli¶cie */
-void write_client_friends(client_t *c, void *buf, int len)
-{
-	list_t l, k;
-	
-	for (l = clients; l; l = l->next) {
-		client_t *i = l->data;
-		
-		if (c == i)
-			continue;
-		
-		for (k = i->friends; k; k = k->next) {
-			friend_t *f = k->data;
-
-			if (f->uin == c->uin && !(f->flags & GG_USER_BLOCKED)) {
-				write_client(i, buf, len);
-				break;
-			}
-		}
-	}
-}
-
 /* szuka klienta o podanym numerku */
 client_t *find_client(int uin)
 {
@@ -105,6 +83,8 @@ friend_t *find_friend(client_t *c, int uin)
 	return NULL;
 }
 
+void changed_status(client_t *c);	/* forward */
+
 /* usuwa klienta, zamyka po³±czneie itd. */
 void remove_client(client_t *c)
 {
@@ -122,29 +102,149 @@ void remove_client(client_t *c)
 	list_remove(&clients, c, 1);
 }
 
+/* XXX, jak tego sie zrobi wiecej, to przeniesc do protocol.c, i magicznie inicjowac */
+static void gg77_status_write(client_t *ten, client_t *c) {
+	struct gg_header h;
+	struct gg_status77 s;
+
+	int status = c->status;
+
+	h.type = GG_STATUS77;
+	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
+
+	memset(&s, 0, sizeof(s));
+
+	if (status == GG_STATUS_INVISIBLE)
+		status = GG_STATUS_NOT_AVAIL;
+
+	if (status == GG_STATUS_INVISIBLE_DESCR)
+		status = GG_STATUS_NOT_AVAIL_DESCR;
+
+	/* XXX, remote_ip, remote_port */
+
+	s.uin = c->uin;
+	s.status = status;
+	s.version = c->version;
+	s.image_size = c->image_size;
+	s.dunno1 = 0x00;		/* ? */
+	s.dunno2 = 0x00;		/* ? */
+
+	write_client(ten, &h, sizeof(h));
+	write_client(ten, &s, sizeof(s));
+	if (c->status_descr)
+		write_client(ten, c->status_descr, strlen(c->status_descr));
+}
+
+/* je¶li klient dopisa³ kogo¶ do swojej userlisty, odpowiadamy, je¶li jest */
+
+client_t *get_client(client_t *c, int uin) {
+	client_t *f;
+
+	if (uin == c->uin)
+		return NULL;
+
+	/* je¶li nie jest po³±czony, zobacz, czy nie zostawi³ opisu */
+	if (!(f = find_client(uin))) {
+		static client_t dummy;
+		static char buf[100];
+
+		FILE *fd;
+
+		memset(&dummy, 0, sizeof(dummy));
+
+		f = &dummy;
+		f->status = GG_STATUS_NOT_AVAIL;
+		f->uin = uin;
+		
+		snprintf(buf, sizeof(buf), "reasons/%d", uin);
+		
+		if ((fd = fopen(buf, "r"))) {
+			if (fgets(buf, sizeof(buf), fd)) {
+				f->status = GG_STATUS_NOT_AVAIL_DESCR;
+				f->status_descr = buf;
+			}
+			fclose(fd);
+		}
+	}
+
+	if (f->status == GG_STATUS_NOT_AVAIL || f->status == GG_STATUS_INVISIBLE)
+		return NULL;
+	
+	return f;
+}
+
+
+/* XXX, wzorowane na notify_reply() nie wiem czemu tak jest */
+static void gg77_notify_reply_data(client_t *ten, int uid) {
+	struct gg_header h;
+	struct gg_notify_reply77 n;
+	client_t *c;
+
+	if (!(c = get_client(ten, uid)))
+		return;
+
+	if (c->status == GG_STATUS_NOT_AVAIL_DESCR || c->status == GG_STATUS_INVISIBLE_DESCR) {
+		ten->status_write(ten, c);
+		return;
+
+	}
+
+	h.type = GG_NOTIFY_REPLY77;
+	h.length = sizeof(n) + ((c->status_descr) ? strlen(c->status_descr) : 0);
+	n.uin = c->uin;
+	n.status = c->status;
+	n.remote_ip = c->ip;
+	n.remote_port = c->port;
+	n.image_size = c->image_size;
+	n.version = c->version;
+	n.dunno1 = 0x00;		/* ? */
+	n.dunno2 = c->port;		/* ? */
+
+	write_client(ten, &h, sizeof(h));
+	write_client(ten, &n, sizeof(n));
+	if (c->status_descr)
+		write_client(c, c->status_descr, strlen(c->status_descr));
+}
+
+static void gg77_notify_reply(client_t *c, int uid) {
+	client_t *a;
+	list_t l;
+
+	if (!uid) {
+		/* XXX */
+		for (l = c->friends; l; l = l->next) {
+			friend_t *f = l->data;
+
+			gg77_notify_reply_data(c, f->uin);
+		}
+	} else {
+
+		gg77_notify_reply_data(c, uid);
+	}
+}
+
 /* wysy³a do ludzi, którzy maj± go w userli¶cie informacjê o zmianie stanu */
 void changed_status(client_t *c)
 {
-	struct gg_header h;
-	struct gg_status s;
-
-	h.type = GG_STATUS;
-	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
-	s.status = c->status;
-	s.uin = c->uin;
+	list_t l;
 	
-	if (s.status == GG_STATUS_INVISIBLE)
-		s.status = GG_STATUS_NOT_AVAIL;
+	for (l = clients; l; l = l->next) {
+		client_t *i = l->data;
+		list_t k;
+		
+		if (c == i)
+			continue;
 
-	if (s.status == GG_STATUS_INVISIBLE_DESCR)
-		s.status = GG_STATUS_NOT_AVAIL_DESCR;
-	
-	write_client_friends(c, &h, sizeof(h));
-	write_client_friends(c, &s, sizeof(s));
-	if (c->status_descr)
-		write_client_friends(c, c->status_descr, strlen(c->status_descr));
+		for (k = i->friends; k; k = k->next) {
+			friend_t *f = k->data;
+
+			if (f->uin == c->uin && !(f->flags & GG_USER_BLOCKED)) {
+				i->status_write(i, c);
+				break;
+			}
+		}
+	}
 }
-
 
 /* obs³uguje przychodz±ce po³±cznia */
 int handle_connection(client_t *c)
@@ -173,6 +273,15 @@ int handle_connection(client_t *c)
 	n.seed = w.key = random();
 	n.ibuf = string_init(NULL);
 	n.obuf = string_init(NULL);
+
+	/* XXX */
+/*
+	n.status_write = gg_status_write;
+	n.status_write = gg60_status_write;
+	n.status_write = gg80_status_write;
+*/
+	n.status_write = gg77_status_write;
+	n.notify_reply = gg77_notify_reply;
 
 	write_full_packet(&n, GG_WELCOME, &w, sizeof(w));
 
