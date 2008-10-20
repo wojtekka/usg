@@ -205,6 +205,19 @@ struct gg_recv_msg {
 
 #define GG_DISCONNECTING 0x000b
 
+#define GG_PUBDIR50_REQUEST 0x0014
+
+struct gg_pubdir50_request {
+	uint8_t type;			/* GG_PUBDIR50_* */
+	uint32_t seq;			/* czas wys³ania zapytania */
+} __attribute__ ((packed));
+
+#define GG_USERLIST_REQUEST 0x0016
+
+struct gg_userlist_request {
+	uint8_t type;
+} __attribute__ ((packed));
+
 #define TIMEOUT_CONNECT 15
 // #define TIMEOUT_CONNECT 180			/* old: XXX + 3*timeout_ping */
 #define TIMEOUT_DEFAULT	(5*60)

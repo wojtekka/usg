@@ -36,20 +36,20 @@
 
 /* jeśli klient dopisał kogoś do swojej userlisty, odpowiadamy, jeśli jest */
 void notify_reply(client_t *c, int uin) {
-	client_t *f = find_client(uin);
-	client_t dummy;
-	char buf[100];
 	struct gg_header h;
 	struct gg_notify_reply n;
+	client_t *f;
 
 	if (uin == c->uin)
 		return;
 
-	memset(&dummy, 0, sizeof(dummy));
-	
 	/* jeśli nie jest połączony, zobacz, czy nie zostawił opisu */
-	if (!f) {
+	if (!(f = find_client(uin))) {
+		static client_t dummy;
+		char buf[100];
 		FILE *fd;
+
+		memset(&dummy, 0, sizeof(dummy));
 
 		f = &dummy;
 		f->status = GG_STATUS_NOT_AVAIL;
@@ -391,9 +391,9 @@ static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 	snprintf(buf, sizeof(buf), "reasons/%d", c->uin);
 
 	if (c->status == GG_STATUS_NOT_AVAIL_DESCR) {
-		FILE *f = fopen(buf, "w");
+		FILE *f;
 
-		if (f) {
+		if ((f = fopen(buf, "w"))) {
 			fputs(c->status_descr, f);
 			fclose(f);
 		}
@@ -403,6 +403,15 @@ static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 	changed_status(c);
 
 	return 0;
+}
+
+static int gg_userlist_req_handler(client_t *c, void *data, uint32_t len) {
+	return -2;
+}
+
+static int gg_pubdir50_req_handler(client_t *c, void *data, uint32_t len) {
+
+	return -2;
 }
 
 static int gg_send_msg_handler(client_t *c, void *data, uint32_t len) {
@@ -420,9 +429,9 @@ static int gg_send_msg_handler(client_t *c, void *data, uint32_t len) {
 		enqueue_message(s->recipient, c->uin, s->seq, s->msgclass, data + sizeof(*s), len - sizeof(*s));
 	} else {
 		struct gg_recv_msg r;
-		friend_t *f = find_friend(rcpt, c->uin);
-
-		if (f) {
+		friend_t *f;
+		
+		if ((f = find_friend(rcpt, c->uin))) {
 			if (f->flags & GG_USER_BLOCKED)
 				return 0;
 		}
@@ -460,28 +469,45 @@ struct {
 } 
 static const gg_handlers[] = 
 {
-	/* login */
+	/* logowanie */
 	{ GG_LOGIN,	gg_login_handler },
 	{ GG_LOGIN_EXT, gg_login_ext_handler },
 	{ GG_LOGIN60,	gg_login60_handler },
 	{ GG_LOGIN70,	gg_login70_handler },
 	{ GG_LOGIN80,	gg_login80_handler },
 
-	/* userlist */
+	/* userlista */
 	{ GG_NOTIFY_FIRST,	gg_notify_handler },
 	{ GG_NOTIFY_LAST,	gg_notify_end_handler },
 	{ GG_LIST_EMPTY, 	gg_list_empty_handler },
 	{ GG_ADD_NOTIFY,	gg_notify_add_handler },
 	{ GG_REMOVE_NOTIFY,	gg_notify_remove_handler },
 
+	/* statusy.. */
 	{ GG_NEW_STATUS,	gg_new_status_handler },
+	/* { GG_NEW_STATUS80,	gg_new_status80_handler }, */
 
-	/* wiadomosc */
-	{ GG_SEND_MSG,	gg_send_msg_handler },
+	/* katalog */
+	{ GG_USERLIST_REQUEST,	gg_userlist_req_handler },
+	{ GG_PUBDIR50_REQUEST,	gg_pubdir50_req_handler },
+
+	/* wiadomosci */
+	{ GG_SEND_MSG,		gg_send_msg_handler },
+	/* { GG_SEND_MSG80,	gg_send_msg80_handler }, */
 
 	/* rozne */
 	{ GG_PING,	gg_ping_handler },
 
+	/* dcc7.x */
+/*
+	{ GG_DCC7_NEW,		(void *) sniff_gg_dcc7_new, 0}, 
+	{ GG_DCC7_ID_REQUEST,	(void *) sniff_gg_dcc7_new_id_request, 0},
+	{ GG_DCC7_REJECT,	(void *) sniff_gg_dcc7_reject, 0},
+	{ GG_DCC_ACCEPT,	(void *) sniff_gg_dcc7_accept, 0}, 
+	{ GG_DCC_2XXX,		(void *) sniff_gg_dcc_2xx_out, 0},
+	{ GG_DCC_3XXX,		(void *) sniff_gg_dcc_3xx_out, 0},
+	{ GG_DCC_4XXX,		(void *) sniff_gg_dcc_4xx_out, 0},
+*/
 	{ 0, NULL }
 };
 
