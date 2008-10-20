@@ -205,7 +205,7 @@ struct gg_recv_msg {
 
 #define GG_DISCONNECTING 0x000b
 
-#define TIMEOUT_CONNECT 120
+#define TIMEOUT_CONNECT 15
 // #define TIMEOUT_CONNECT 180			/* old: XXX + 3*timeout_ping */
 #define TIMEOUT_DEFAULT	(5*60)
 //#define TIMEOUT_DEFAULT 120			/* old: 2*timeout_ping */

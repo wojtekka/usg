@@ -121,6 +121,7 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 
 	c->uin = uin;
 	c->state = STATE_LOGIN_OK;
+	c->timeout = time(NULL) + TIMEOUT_DEFAULT;
 
 	write_full_packet(c, GG_LOGIN_OK, NULL, 0);
 
