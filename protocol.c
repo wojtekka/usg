@@ -263,7 +263,6 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 
 static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_notify *n = data;
-	list_t l;
 	int i;
 
 	printf("received notify list from %d\n", c->uin);
@@ -293,6 +292,11 @@ static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
 	if (len < sizeof(struct gg_add_remove))
 		return -1;
 
+	if (c->state != STATE_LOGIN_OK) {
+		printf("gg_notify_add_handler() c->state = %d\n", c->state);
+		return -3;
+	}
+
 	printf("adding notify on %d for %d\n", ar->uin, c->uin);
 
 	if (ar->uin == 0) {
@@ -314,10 +318,20 @@ static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
 }
 
 static int gg_notify_remove_handler(client_t *c, void *data, uint32_t len) {
-	struct gg_add_remove *ar = data;
+	struct gg_add_remove *ar = (struct gg_add_remove *) data;
 	list_t l;
 
+	if (len < sizeof(struct gg_add_remove))
+		return -1;
+
+	if (c->state != STATE_LOGIN_OK) {
+		printf("gg_notify_remove_handler() c->state = %d\n", c->state);
+		return -3;
+	}
+
 	printf("removing notify from %d for %d\n", c->uin, ar->uin);
+
+	/* XXX, tak samo czy moze wystepowac wiecej niz 1 numerek w pakiecie? */
 
 	for (l = c->friends; l; l = l->next) {
 		friend_t *f = l->data;
@@ -440,7 +454,7 @@ static const gg_handlers[] =
 	{ GG_NOTIFY_LAST,	gg_notify_end_handler },
 	{ GG_LIST_EMPTY, 	gg_list_empty_handler },
 	{ GG_ADD_NOTIFY,	gg_notify_add_handler },		/* ok */
-	{ GG_REMOVE_NOTIFY,	gg_notify_remove_handler },
+	{ GG_REMOVE_NOTIFY,	gg_notify_remove_handler },		/* ok */
 
 	/* statusy.. */
 	{ GG_NEW_STATUS,	gg_new_status_handler },

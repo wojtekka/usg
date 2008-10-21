@@ -114,18 +114,16 @@ static void gg77_status_write(client_t *ten, client_t *c) {
 	h.type = GG_STATUS77;
 	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
 
-	memset(&s, 0, sizeof(s));
-
 	if (status == GG_STATUS_INVISIBLE)
 		status = GG_STATUS_NOT_AVAIL;
 
 	if (status == GG_STATUS_INVISIBLE_DESCR)
 		status = GG_STATUS_NOT_AVAIL_DESCR;
 
-	/* XXX, remote_ip, remote_port */
-
 	s.uin = c->uin;
 	s.status = status;
+	s.remote_ip = c->ip;		/* XXX */
+	s.remote_port = c->port;	/* XXX */
 	s.version = c->version;
 	s.image_size = c->image_size;
 	s.dunno1 = 0x00;		/* ? */
@@ -148,22 +146,24 @@ client_t *get_client(client_t *c, int uin) {
 	/* je¶li nie jest po³±czony, zobacz, czy nie zostawi³ opisu */
 	if (!(f = find_client(uin))) {
 		static client_t dummy;
-		static char buf[100];
-
+		char fbuf[100];
 		FILE *fd;
 
 		memset(&dummy, 0, sizeof(dummy));
 
 		f = &dummy;
-		f->status = GG_STATUS_NOT_AVAIL;
 		f->uin = uin;
+		f->status = GG_STATUS_NOT_AVAIL;
+		f->status_descr = NULL;
 		
-		snprintf(buf, sizeof(buf), "reasons/%d", uin);
+		snprintf(fbuf, sizeof(fbuf), "reasons/%d", uin);
 		
-		if ((fd = fopen(buf, "r"))) {
-			if (fgets(buf, sizeof(buf), fd)) {
+		if ((fd = fopen(fbuf, "r"))) {
+			static char descr_buf[300];
+
+			if (fgets(descr_buf, sizeof(descr_buf), fd)) {
 				f->status = GG_STATUS_NOT_AVAIL_DESCR;
-				f->status_descr = buf;
+				f->status_descr = descr_buf;
 			}
 			fclose(fd);
 		}
@@ -188,28 +188,33 @@ static void gg77_notify_reply_data(client_t *ten, int uid) {
 	if (c->status == GG_STATUS_NOT_AVAIL_DESCR || c->status == GG_STATUS_INVISIBLE_DESCR) {
 		ten->status_write(ten, c);
 		return;
-
 	}
 
 	h.type = GG_NOTIFY_REPLY77;
-	h.length = sizeof(n) + ((c->status_descr) ? strlen(c->status_descr) : 0);
+	h.length = sizeof(n) + ((c->status_descr) ? 1+strlen(c->status_descr)+1 : 0);
+
 	n.uin = c->uin;
 	n.status = c->status;
 	n.remote_ip = c->ip;
 	n.remote_port = c->port;
-	n.image_size = c->image_size;
 	n.version = c->version;
+	n.image_size = c->image_size;
 	n.dunno1 = 0x00;		/* ? */
-	n.dunno2 = c->port;		/* ? */
+	n.dunno2 = 0x00;		/* ? */
 
 	write_client(ten, &h, sizeof(h));
 	write_client(ten, &n, sizeof(n));
-	if (c->status_descr)
+	if (c->status_descr) {
+		unsigned char ile = strlen(c->status_descr);
+		unsigned char nul = '\0';
+
+		write_client(c, &ile, 1);
 		write_client(c, c->status_descr, strlen(c->status_descr));
+		write_client(c, &nul, 1);
+	}
 }
 
 static void gg77_notify_reply(client_t *c, int uid) {
-	client_t *a;
 	list_t l;
 
 	if (!uid) {

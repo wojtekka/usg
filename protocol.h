@@ -115,6 +115,7 @@ struct gg_login70 {
 #define GG_STATUS_INVISIBLE_DESCR 0x0016	/* niewidoczny z opisem (4.9) */
 
 #define GG_STATUS_FRIENDS_MASK 0x8000		/* tylko dla znajomych (4.6) */
+#define GG_STATUS_VOICE_MASK 0x20000		/* czy ma wlaczone audio (7.7) */
 
 struct gg_new_status {
 	uint32_t status;			/* na jaki zmieniæ? */

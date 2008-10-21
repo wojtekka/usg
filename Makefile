@@ -12,5 +12,5 @@ dirs:
 	touch passwd
 
 clean:
-	rm -f *.o core *~
+	rm -f usg *.o core *~
 
