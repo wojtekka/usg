@@ -16,8 +16,7 @@ int enqueue_message(int recipient, int sender, int seq, int msgclass, char *text
 	char buf[100];
 	int fd;
 
-	snprintf(buf, sizeof(buf), "queue/%d", recipient);
-	mkdir(buf, 0700);
+	mkdir(path_uin("queue", recipient), 0700);
 	snprintf(buf, sizeof(buf), "queue/%d/%.10ld-%d-%d-%d", recipient, time(NULL), sender, seq, msgclass);
 	if ((fd = open(buf, O_WRONLY | O_CREAT, 0600)) == -1)
 		return -1;
@@ -34,15 +33,14 @@ int enqueue_message(int recipient, int sender, int seq, int msgclass, char *text
 int unqueue_message(int uin, msgqueue_t *m)
 {
 	DIR *d;
-	char buf[100];
 	struct dirent *de;
 	int fd;
 	
-	snprintf(buf, sizeof(buf), "queue/%d", uin);
-	if (!(d = opendir(buf)))
+	if (!(d = opendir(path_uin("queue", uin))))
 		return -1;
 
 	while ((de = readdir(d))) {
+		char buf[100];
 		struct stat st;
 
 		snprintf(buf, sizeof(buf), "queue/%d/%s", uin, de->d_name);
@@ -62,7 +60,7 @@ int unqueue_message(int uin, msgqueue_t *m)
 						
 		m->text = xmalloc(st.st_size);
 		if (read(fd, m->text, st.st_size) < st.st_size) {
-			xfree(m->text);
+			free(m->text);
 			closedir(d);
 			return -1;
 		}

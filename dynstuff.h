@@ -45,15 +45,10 @@ struct string {
 typedef struct string * string_t;
 
 struct string *string_init(const char *str);
-int string_append(struct string *s, const char *str);
-int string_append_n(struct string *s, const char *str, int count);
-int string_append_c(struct string *s, char ch);
 int string_append_raw(string_t s, const char *str, int count);
 void string_remove(string_t s, int count);
-char *string_free(struct string *s, int free_string);
+void string_free(string_t s);
 
 /* rozszerzenia libców */
-
-const char *itoa(long int i);
 
 #endif /* __DYNSTUFF_H */

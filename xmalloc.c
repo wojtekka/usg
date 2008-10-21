@@ -52,12 +52,6 @@ void *xmalloc_(int size, char *a, int b)
 	return tmp;
 }
 
-void xfree_(void *ptr)
-{
-	if (ptr)
-		free(ptr);
-}
-
 void *xrealloc_(void *ptr, int size, char *a, int b)
 {
 	void *tmp = realloc(ptr, size);

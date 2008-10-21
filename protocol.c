@@ -34,6 +34,41 @@
 #include "auth.h"
 #include "msgqueue.h"
 
+client_t *get_client(client_t *c, int uin) {
+	client_t *f;
+
+	if (uin == c->uin)
+		return NULL;
+
+	/* jeśli nie jest połączony, zobacz, czy nie zostawił opisu */
+	if (!(f = find_client(uin))) {
+		static client_t dummy;
+		FILE *fd;
+
+		memset(&dummy, 0, sizeof(dummy));
+
+		f = &dummy;
+		f->uin = uin;
+		f->status = GG_STATUS_NOT_AVAIL;
+		f->status_descr = NULL;
+		
+		if ((fd = fopen(path_uin("reasons", uin), "r"))) {
+			static char descr_buf[300];
+
+			if (fgets(descr_buf, sizeof(descr_buf), fd)) {
+				f->status = GG_STATUS_NOT_AVAIL_DESCR;
+				f->status_descr = descr_buf;
+			}
+			fclose(fd);
+		}
+	}
+
+	if (f->status == GG_STATUS_NOT_AVAIL || f->status == GG_STATUS_INVISIBLE)
+		return NULL;
+	
+	return f;
+}
+
 static void gg77_notify_reply_data(client_t *ten, int uid) {
 	struct gg_header h;
 	struct gg_notify_reply77 n;
@@ -43,6 +78,10 @@ static void gg77_notify_reply_data(client_t *ten, int uid) {
 	
 	if (!(c = get_client(ten, uid)))
 		return;
+
+	if (c->status_private) {
+		/* XXX */
+	}
 
 	if (c->status == GG_STATUS_INVISIBLE)
 		status = GG_STATUS_NOT_AVAIL;
@@ -95,14 +134,18 @@ static void gg77_status_write(client_t *ten, client_t *c) {
 
 	int status = c->status;
 
-	h.type = GG_STATUS77;
-	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
+	if (c->status_private) {
+		/* XXX */
+	}
 
 	if (status == GG_STATUS_INVISIBLE)
 		status = GG_STATUS_NOT_AVAIL;
 
 	if (status == GG_STATUS_INVISIBLE_DESCR)
 		status = GG_STATUS_NOT_AVAIL_DESCR;
+
+	h.type = GG_STATUS77;
+	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
 
 	s.uin = c->uin;
 	s.status = status;
@@ -206,7 +249,7 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 
 		c->msg_send(c, &m);
 
-		xfree(m.text);
+		free(m.text);
 	}
 }
 
@@ -468,7 +511,6 @@ static int gg_notify_remove_handler(client_t *c, void *data, uint32_t len) {
 static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_new_status *s = (struct gg_new_status *) data;
 	int status;
-	char buf[100];
 
 	status = s->status;
 
@@ -488,7 +530,7 @@ static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 	c->status = status;
 
 	if (c->status_descr) {
-		xfree(c->status_descr);
+		free(c->status_descr);
 		c->status_descr = NULL;
 	}
 	if (len > sizeof(*s)) {
@@ -499,17 +541,15 @@ static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 
 	printf("status change: uin=%d, status=%d, descr=\"%s\"\n", c->uin, c->status, c->status_descr);
 
-	snprintf(buf, sizeof(buf), "reasons/%d", c->uin);
-
 	if (c->status == GG_STATUS_NOT_AVAIL_DESCR) {
 		FILE *f;
 
-		if ((f = fopen(buf, "w"))) {
+		if ((f = fopen(path_uin("reasons", c->uin), "w"))) {
 			fputs(c->status_descr, f);
 			fclose(f);
 		}
 	} else
-		unlink(buf);
+		unlink(path_uin("reasons", c->uin));
 
 	changed_status(c);
 

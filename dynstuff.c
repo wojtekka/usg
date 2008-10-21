@@ -220,38 +220,6 @@ string_t string_init(const char *value) {
 	return tmp;
 }
 
-int string_append_c(string_t s, char c)
-{
-	if (!s) {
-		errno = EFAULT;
-		return -1;
-	}
-	
-	string_realloc(s, s->len + 1);
-
-	s->str[s->len + 1] = 0;
-	s->str[s->len++] = c;
-
-	return 0;
-}
-
-int string_append_n(string_t s, const char *str, int count)
-{
-	if (!s || !str || count < 0) {
-		errno = EFAULT;
-		return -1;
-	}
-
-	string_realloc(s, s->len + count);
-
-	s->str[s->len + count] = 0;
-	strncpy(s->str + s->len, str, count);
-
-	s->len += count;
-
-	return 0;
-}
-
 int string_append_raw(string_t s, const char *str, int count)
 {
 	if (!s || !str || count < 0) {
@@ -267,16 +235,6 @@ int string_append_raw(string_t s, const char *str, int count)
 	s->len += count;
 
 	return 0;
-}
-
-int string_append(string_t s, const char *str)
-{
-	if (!s || !str) {
-		errno = EFAULT;
-		return -1;
-	}
-
-	return string_append_n(s, str, strlen(str));
 }
 
 void string_remove(string_t s, int count)
@@ -296,46 +254,11 @@ void string_remove(string_t s, int count)
 	}
 }
 
-char *string_free(string_t s, int free_string)
+void string_free(string_t s)
 {
-	char *tmp = NULL;
-
-	if (!s)
-		return NULL;
-
-	if (free_string)
-		xfree(s->str);
-	else
-		tmp = s->str;
-
-	xfree(s);
-
-	return tmp;
-}
-
-/*
- * itoa()
- *
- * prosta funkcja, która zwraca tekstow± reprezentacjê liczby. w obrêbie
- * danego wywo³ania jakiej¶ funkcji lub wyra¿enia mo¿e byæ wywo³ania 10
- * razy, poniewa¿ tyle mamy statycznych buforów. lepsze to ni¿ ci±g³e
- * tworzenie tymczasowych buforów na stosie i sprintf()owanie.
- *
- *  - i - liczba do zamiany.
- *
- * zwraca adres do bufora, którego _NIE_NALE¯Y_ zwalniaæ.
- */
-const char *itoa(long int i)
-{
-	static char bufs[10][16];
-	static int index = 0;
-	char *tmp = bufs[index++];
-
-	if (index > 9)
-		index = 0;
-	
-	snprintf(tmp, 16, "%ld", i);
-
-	return tmp;
+	if (s) {
+		free(s->str);
+		free(s);
+	}
 }
 

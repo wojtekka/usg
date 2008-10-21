@@ -71,6 +71,14 @@ client_t *find_client(int uin)
 	return NULL;
 }
 
+const char *path_uin(const char *base, int uin)
+{
+	static char buf[1024];
+
+	snprintf(buf, sizeof(buf), "%s/%d", base, uin);
+	return buf;
+}
+
 /* szuka u danego klienta przyjaciela o podanym numerku */
 friend_t *find_friend(client_t *c, int uin)
 {
@@ -86,8 +94,6 @@ friend_t *find_friend(client_t *c, int uin)
 	return NULL;
 }
 
-void changed_status(client_t *c);	/* forward */
-
 /* usuwa klienta, zamyka po³±czneie itd. */
 void remove_client(client_t *c)
 {
@@ -100,51 +106,11 @@ void remove_client(client_t *c)
 
 	shutdown(c->fd, 2);
 	close(c->fd);
-	string_free(c->ibuf, 1);
-	string_free(c->obuf, 1);
-	xfree(c->status_descr);
+	string_free(c->ibuf);
+	string_free(c->obuf);
+	free(c->status_descr);
 	list_destroy(c->friends, 1);
 	list_remove(&clients, c, 1);
-}
-
-/* je¶li klient dopisa³ kogo¶ do swojej userlisty, odpowiadamy, je¶li jest */
-
-client_t *get_client(client_t *c, int uin) {
-	client_t *f;
-
-	if (uin == c->uin)
-		return NULL;
-
-	/* je¶li nie jest po³±czony, zobacz, czy nie zostawi³ opisu */
-	if (!(f = find_client(uin))) {
-		static client_t dummy;
-		char fbuf[100];
-		FILE *fd;
-
-		memset(&dummy, 0, sizeof(dummy));
-
-		f = &dummy;
-		f->uin = uin;
-		f->status = GG_STATUS_NOT_AVAIL;
-		f->status_descr = NULL;
-		
-		snprintf(fbuf, sizeof(fbuf), "reasons/%d", uin);
-		
-		if ((fd = fopen(fbuf, "r"))) {
-			static char descr_buf[300];
-
-			if (fgets(descr_buf, sizeof(descr_buf), fd)) {
-				f->status = GG_STATUS_NOT_AVAIL_DESCR;
-				f->status_descr = descr_buf;
-			}
-			fclose(fd);
-		}
-	}
-
-	if (f->status == GG_STATUS_NOT_AVAIL || f->status == GG_STATUS_INVISIBLE)
-		return NULL;
-	
-	return f;
 }
 
 /* wysy³a do ludzi, którzy maj± go w userli¶cie informacjê o zmianie stanu */
@@ -171,7 +137,7 @@ void changed_status(client_t *c)
 }
 
 /* obs³uguje przychodz±ce po³±cznia */
-int handle_connection(client_t *c)
+static int handle_connection(client_t *c)
 {
 	client_t n;
 	struct sockaddr_in sin;
@@ -209,7 +175,7 @@ extern void handle_input_packet(client_t *c);		/* protocol.c */
 
 /* gdy przychodz± dane, dopisz do bufora i wywo³aj obs³ugê pakietów, je¶li
  * jaki¶ uda³o siê ju¿ posk³adaæ */
-int handle_input(client_t *c)
+static int handle_input(client_t *c)
 {
 	char buf[1024];
 	int res, first = 1;
@@ -264,7 +230,7 @@ int handle_input(client_t *c)
 }
 
 /* je¶li mo¿emy s³aæ to ¶lij */
-int handle_output(client_t *c)
+static int handle_output(client_t *c)
 {
 	int res;
 	
@@ -291,7 +257,7 @@ int handle_output(client_t *c)
 }
 
 /* je¶li siê powiesi³, to sio z nim */
-int handle_hangup(client_t *c)
+static int handle_hangup(client_t *c)
 {
 	remove_client(c);
 	return 1;
@@ -396,7 +362,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		xfree(ufds);
+		free(ufds);
 	}
 
 	return 1;

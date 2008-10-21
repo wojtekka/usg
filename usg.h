@@ -50,8 +50,12 @@ typedef struct {
 
 list_t clients;
 
+void changed_status(client_t *c);
+
 client_t *find_client(int uin);
+friend_t *find_friend(client_t *c, int uin);
 void write_client(client_t *c, void *buf, int len);
 void write_full_packet(client_t *c, int type, void *buf, int len);
+const char *path_uin(const char *base, int uin);
 
 #endif
