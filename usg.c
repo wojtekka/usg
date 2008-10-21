@@ -175,26 +175,28 @@ client_t *get_client(client_t *c, int uin) {
 	return f;
 }
 
-
-/* XXX, wzorowane na notify_reply() nie wiem czemu tak jest */
 static void gg77_notify_reply_data(client_t *ten, int uid) {
 	struct gg_header h;
 	struct gg_notify_reply77 n;
 	client_t *c;
 
+	int status;
+	
 	if (!(c = get_client(ten, uid)))
 		return;
 
-	if (c->status == GG_STATUS_NOT_AVAIL_DESCR || c->status == GG_STATUS_INVISIBLE_DESCR) {
-		ten->status_write(ten, c);
-		return;
-	}
+	if (c->status == GG_STATUS_INVISIBLE)
+		status = GG_STATUS_NOT_AVAIL;
+	else if (c->status == GG_STATUS_INVISIBLE_DESCR)
+		status = GG_STATUS_NOT_AVAIL_DESCR;
+	else
+		status = c->status;
 
 	h.type = GG_NOTIFY_REPLY77;
 	h.length = sizeof(n) + ((c->status_descr) ? 1+strlen(c->status_descr)+1 : 0);
 
 	n.uin = c->uin;
-	n.status = c->status;
+	n.status = status;
 	n.remote_ip = c->ip;
 	n.remote_port = c->port;
 	n.version = c->version;
@@ -206,11 +208,9 @@ static void gg77_notify_reply_data(client_t *ten, int uid) {
 	write_client(ten, &n, sizeof(n));
 	if (c->status_descr) {
 		unsigned char ile = strlen(c->status_descr);
-		unsigned char nul = '\0';
 
-		write_client(c, &ile, 1);
-		write_client(c, c->status_descr, strlen(c->status_descr));
-		write_client(c, &nul, 1);
+		write_client(ten, &ile, 1);
+		write_client(ten, c->status_descr, strlen(c->status_descr)+1);
 	}
 }
 
