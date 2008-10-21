@@ -34,6 +34,8 @@
 #include "auth.h"
 #include "msgqueue.h"
 
+static char motd_text[] = "Witaj na wolnym serwerze gg! (usg 0.2)";
+
 client_t *get_client(client_t *c, int uin) {
 	client_t *f;
 
@@ -196,6 +198,31 @@ static void gg_msg_send(client_t *c, msgqueue_t *m) {
 	write_client(c, m->text, m->length);
 }
 
+static void gg_msg_send80(client_t *c, msgqueue_t *m) {	// not tested/working
+	struct gg_header h;
+	struct gg_recv_msg80 r;
+
+	friend_t *f;
+
+	if ((f = find_friend(c, m->sender))) {
+		if (f->flags & GG_USER_BLOCKED)
+			return;
+	}
+
+	h.type = GG_RECV_MSG80;
+	h.length = sizeof(r) + m->length;
+	r.sender = m->sender;
+	r.seq = m->seq;
+	r.time = m->time;
+	r.msgclass = m->msgclass;
+	r.offset_plain = 0;		// XXX
+	r.offset_attr = 0;		// XXX
+
+	write_client(c, &h, sizeof(h));
+	write_client(c, &r, sizeof(r));
+	write_client(c, m->text, m->length);
+}
+
 static void gg_login_ok(client_t *c, uint32_t uin) {
 	client_t *old_client;
 	msgqueue_t m;
@@ -237,8 +264,8 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 		motd.time = 0;
 		motd.seq = 0;
 		motd.msgclass = GG_CLASS_MSG;
-		motd.text = "Witaj na serwerze usg!";
-		motd.length = strlen(motd.text)+1;
+		motd.text = motd_text;
+		motd.length = sizeof(motd_text);
 
 		c->msg_send(c, &motd);
 	}
@@ -413,6 +440,11 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_notify *n = data;
 	int i;
 
+	if (c->state != STATE_LOGIN_OK) {
+		printf("gg_notify_handler() c->state = %d\n", c->state);
+		return -3;
+	}
+
 	printf("received notify list from %d\n", c->uin);
 
 	for (i = 0; i < len / sizeof(*n); i++) {
@@ -426,25 +458,19 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 }
 
 static int gg_notify_end_handler(client_t *c, void *data, uint32_t len) {
-	struct gg_notify *n = data;
-	int i;
-
-	printf("received notify list from %d\n", c->uin);
-
-	for (i = 0; i < len / sizeof(*n); i++) {
-		friend_t f;
-
-		f.uin = n[i].uin;
-		f.flags = n[i].dunno1;
-		list_add(&c->friends, &f, sizeof(f));
+	if (gg_notify_handler(c, data, len) == 0) {
+		c->notify_reply(c, 0);
+		return 0;
 	}
 
-	c->notify_reply(c, 0);
-
-	return 0;
+	return -1;
 }
 
 static int gg_list_empty_handler(client_t *c, void *data, uint32_t len) {
+	if (c->state != STATE_LOGIN_OK) {
+		printf("gg_list_empty_handler() c->state = %d\n", c->state);
+		return -3;
+	}
 
 	return 0;
 }
@@ -574,38 +600,38 @@ static int gg_pubdir50_req_handler(client_t *c, void *data, uint32_t len) {
 
 static int gg_send_msg_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_send_msg *s = (struct gg_send_msg *) data;
-	int ack = GG_ACK_QUEUED;
-	struct gg_header h;
 	struct gg_send_msg_ack a;
 	client_t *rcpt;
+	int ack;
 
 	if (len < sizeof(struct gg_send_msg))
 		return -2;
 
+	if (c->state != STATE_LOGIN_OK) {
+		printf("gg_send_msg_handler() c->state = %d\n", c->state);
+		return -3;
+	}
+
 	if (!(rcpt = find_client(s->recipient))) {
 		printf("enqueuing message from %d to %d\n", c->uin, s->recipient);
 		enqueue_message(s->recipient, c->uin, s->seq, s->msgclass, data + sizeof(*s), len - sizeof(*s));
+
+		ack= GG_ACK_QUEUED;
 	} else {
-		struct gg_recv_msg r;
-		friend_t *f;
-		
-		if ((f = find_friend(rcpt, c->uin))) {
-			if (f->flags & GG_USER_BLOCKED)
-				return 0;
-		}
+		msgqueue_t m;
 
 		printf("sending message from %d to %d\n", c->uin, s->recipient);
 
-		h.type = GG_RECV_MSG;
-		h.length = sizeof(r) + (len - sizeof(*s));
-		r.sender = c->uin;
-		r.seq = s->seq;
-		r.time = time(NULL);
-		r.msgclass = s->msgclass;
+		m.sender = c->uin;
+		m.seq = s->seq;
+		m.time = time(NULL);
+		m.msgclass = s->msgclass;
 
-		write_client(rcpt, &h, sizeof(h));
-		write_client(rcpt, &r, sizeof(r));
-		write_client(rcpt, data + sizeof(*s), len - sizeof(*s));
+		m.text = data + sizeof(*s);
+		m.length = (len - sizeof(*s));
+
+		rcpt->msg_send(rcpt, &m);
+
 		ack = GG_ACK_DELIVERED;
 	}
 
