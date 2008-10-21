@@ -39,6 +39,9 @@ list_t clients = NULL;
 /* wysy³a dane do danego klienta */
 void write_client(client_t *c, void *buf, int len)
 {
+	if (c->remove)		/* jak usuniety, to usuniety */
+		return;
+
 	string_append_raw(c->obuf, (char *) buf, len);
 }
 
@@ -104,37 +107,6 @@ void remove_client(client_t *c)
 	list_remove(&clients, c, 1);
 }
 
-/* XXX, jak tego sie zrobi wiecej, to przeniesc do protocol.c, i magicznie inicjowac */
-static void gg77_status_write(client_t *ten, client_t *c) {
-	struct gg_header h;
-	struct gg_status77 s;
-
-	int status = c->status;
-
-	h.type = GG_STATUS77;
-	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
-
-	if (status == GG_STATUS_INVISIBLE)
-		status = GG_STATUS_NOT_AVAIL;
-
-	if (status == GG_STATUS_INVISIBLE_DESCR)
-		status = GG_STATUS_NOT_AVAIL_DESCR;
-
-	s.uin = c->uin;
-	s.status = status;
-	s.remote_ip = c->ip;		/* XXX */
-	s.remote_port = c->port;	/* XXX */
-	s.version = c->version;
-	s.image_size = c->image_size;
-	s.dunno1 = 0x00;		/* ? */
-	s.dunno2 = 0x00;		/* ? */
-
-	write_client(ten, &h, sizeof(h));
-	write_client(ten, &s, sizeof(s));
-	if (c->status_descr)
-		write_client(ten, c->status_descr, strlen(c->status_descr));
-}
-
 /* je¶li klient dopisa³ kogo¶ do swojej userlisty, odpowiadamy, je¶li jest */
 
 client_t *get_client(client_t *c, int uin) {
@@ -173,61 +145,6 @@ client_t *get_client(client_t *c, int uin) {
 		return NULL;
 	
 	return f;
-}
-
-static void gg77_notify_reply_data(client_t *ten, int uid) {
-	struct gg_header h;
-	struct gg_notify_reply77 n;
-	client_t *c;
-
-	int status;
-	
-	if (!(c = get_client(ten, uid)))
-		return;
-
-	if (c->status == GG_STATUS_INVISIBLE)
-		status = GG_STATUS_NOT_AVAIL;
-	else if (c->status == GG_STATUS_INVISIBLE_DESCR)
-		status = GG_STATUS_NOT_AVAIL_DESCR;
-	else
-		status = c->status;
-
-	h.type = GG_NOTIFY_REPLY77;
-	h.length = sizeof(n) + ((c->status_descr) ? 1+strlen(c->status_descr)+1 : 0);
-
-	n.uin = c->uin;
-	n.status = status;
-	n.remote_ip = c->ip;
-	n.remote_port = c->port;
-	n.version = c->version;
-	n.image_size = c->image_size;
-	n.dunno1 = 0x00;		/* ? */
-	n.dunno2 = 0x00;		/* ? */
-
-	write_client(ten, &h, sizeof(h));
-	write_client(ten, &n, sizeof(n));
-	if (c->status_descr) {
-		unsigned char ile = strlen(c->status_descr);
-
-		write_client(ten, &ile, 1);
-		write_client(ten, c->status_descr, strlen(c->status_descr)+1);
-	}
-}
-
-static void gg77_notify_reply(client_t *c, int uid) {
-	list_t l;
-
-	if (!uid) {
-		/* XXX */
-		for (l = c->friends; l; l = l->next) {
-			friend_t *f = l->data;
-
-			gg77_notify_reply_data(c, f->uin);
-		}
-	} else {
-
-		gg77_notify_reply_data(c, uid);
-	}
 }
 
 /* wysy³a do ludzi, którzy maj± go w userli¶cie informacjê o zmianie stanu */
@@ -280,15 +197,6 @@ int handle_connection(client_t *c)
 	n.seed = w.key = random();
 	n.ibuf = string_init(NULL);
 	n.obuf = string_init(NULL);
-
-	/* XXX */
-/*
-	n.status_write = gg_status_write;
-	n.status_write = gg60_status_write;
-	n.status_write = gg80_status_write;
-*/
-	n.status_write = gg77_status_write;
-	n.notify_reply = gg77_notify_reply;
 
 	write_full_packet(&n, GG_WELCOME, &w, sizeof(w));
 

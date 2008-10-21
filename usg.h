@@ -2,6 +2,7 @@
 #define __USG_H
 
 #include "dynstuff.h"
+#include "msgqueue.h"
 
 enum client_state_t {
 	STATE_NONE = 0,
@@ -11,25 +12,30 @@ enum client_state_t {
 };
 
 typedef struct client {
-	int fd;		/* socket klienta */
-	int uin;	/* numerek */
-	int state;	/* stan po³±czenia */
-	int seed;	/* seed */
-	int status;	/* stan klienta */
-	char *status_descr;	/* opis stanu */
-	string_t ibuf;	/* bufor wej¶ciowy */
-	string_t obuf;	/* bufor wyj¶ciowy */
-	unsigned long ip;			/* adres */
-	unsigned short port;			/* port */
-	unsigned char image_size;		/* maksymalny rozmiar grafiki w KiB */
-	int version;				/* wersja protoko³u */
-	int timeout;				/* timeout */
-	list_t friends;	/* lista znajomych */
-	int last_ping;	/* czas ostatniego pinga */
-	int remove;	/* usun±æ po wys³aniu danych? */
+	int fd;			/* socket klienta */
+	int uin;		/* numerek */
+	int state;		/* stan po³±czenia */
+	int seed;		/* seed */
 
-	void (*status_write)(struct client *, struct client *); 
-	void (*notify_reply)(struct client *, int);
+	string_t ibuf;		/* bufor wej¶ciowy */
+	string_t obuf;		/* bufor wyj¶ciowy */
+
+	int status;		/* stan klienta */
+	int status_private;	/* czy stan tylko dla znajomych? */		/* XXX */
+	char *status_descr;	/* opis stanu */
+
+	unsigned long ip;		/* adres */
+	unsigned short port;		/* port */
+	unsigned char image_size;	/* maksymalny rozmiar grafiki w KiB */
+	int version;			/* wersja protoko³u */
+	int timeout;			/* timeout */
+	list_t friends;			/* lista znajomych */
+	int last_ping;			/* czas ostatniego pinga */
+	int remove;			/* usun±æ po wys³aniu danych? */
+
+	void (*status_write)(struct client *, struct client *);		/* odpowiednie GG_STATUS* */		/* XXX */
+	void (*notify_reply)(struct client *, int);			/* odpowiednie GG_NOTIFY_REPLY* */	/* XXX */
+	void (*msg_send)(struct client *, msgqueue_t *);
 } client_t;
 
 enum friend_state_t {

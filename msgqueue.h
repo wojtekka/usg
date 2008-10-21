@@ -1,8 +1,6 @@
 #ifndef __MSGQUEUE_H
 #define __MSGQUEUE_H
 
-#include "usg.h"
-
 typedef struct {
 	int sender;
 	int time;

@@ -34,6 +34,93 @@
 #include "auth.h"
 #include "msgqueue.h"
 
+static void gg77_notify_reply_data(client_t *ten, int uid) {
+	struct gg_header h;
+	struct gg_notify_reply77 n;
+	client_t *c;
+
+	int status;
+	
+	if (!(c = get_client(ten, uid)))
+		return;
+
+	if (c->status == GG_STATUS_INVISIBLE)
+		status = GG_STATUS_NOT_AVAIL;
+	else if (c->status == GG_STATUS_INVISIBLE_DESCR)
+		status = GG_STATUS_NOT_AVAIL_DESCR;
+	else
+		status = c->status;
+
+	h.type = GG_NOTIFY_REPLY77;
+	h.length = sizeof(n) + ((c->status_descr) ? 1+strlen(c->status_descr)+1 : 0);
+
+	n.uin = c->uin;
+	n.status = status;
+	n.remote_ip = c->ip;
+	n.remote_port = c->port;
+	n.version = c->version;
+	n.image_size = c->image_size;
+	n.dunno1 = 0x00;		/* ? */
+	n.dunno2 = 0x00;		/* ? */
+
+	write_client(ten, &h, sizeof(h));
+	write_client(ten, &n, sizeof(n));
+	if (c->status_descr) {
+		unsigned char ile = strlen(c->status_descr);
+
+		write_client(ten, &ile, 1);
+		write_client(ten, c->status_descr, strlen(c->status_descr)+1);
+	}
+}
+
+static void gg77_notify_reply(client_t *c, int uid) {
+	list_t l;
+
+	if (!uid) {
+		/* XXX */
+		for (l = c->friends; l; l = l->next) {
+			friend_t *f = l->data;
+
+			gg77_notify_reply_data(c, f->uin);
+		}
+	} else {
+
+		gg77_notify_reply_data(c, uid);
+	}
+}
+
+static void gg77_status_write(client_t *ten, client_t *c) {
+	struct gg_header h;
+	struct gg_status77 s;
+
+	int status = c->status;
+
+	h.type = GG_STATUS77;
+	h.length = sizeof(s) + ((c->status_descr) ? strlen(c->status_descr) : 0);
+
+	if (status == GG_STATUS_INVISIBLE)
+		status = GG_STATUS_NOT_AVAIL;
+
+	if (status == GG_STATUS_INVISIBLE_DESCR)
+		status = GG_STATUS_NOT_AVAIL_DESCR;
+
+	s.uin = c->uin;
+	s.status = status;
+	s.remote_ip = c->ip;		/* XXX */
+	s.remote_port = c->port;	/* XXX */
+	s.version = c->version;
+	s.image_size = c->image_size;
+	s.dunno1 = 0x00;		/* ? */
+	s.dunno2 = 0x00;		/* ? */
+
+	write_client(ten, &h, sizeof(h));
+	write_client(ten, &s, sizeof(s));
+	if (c->status_descr)
+		write_client(ten, c->status_descr, strlen(c->status_descr));
+}
+
+/* */
+
 static int gg_ping_handler(client_t *c, void *data, uint32_t len) {
 	printf("received ping from %d\n", c->uin);
 
@@ -43,18 +130,41 @@ static int gg_ping_handler(client_t *c, void *data, uint32_t len) {
 	return 0;
 }
 
+static void gg_msg_send(client_t *c, msgqueue_t *m) {
+	struct gg_header h;
+	struct gg_recv_msg r;
+
+	friend_t *f;
+
+	if ((f = find_friend(c, m->sender))) {
+		if (f->flags & GG_USER_BLOCKED)
+			return;
+	}
+
+	h.type = GG_RECV_MSG;
+	h.length = sizeof(r) + m->length;
+	r.sender = m->sender;
+	r.seq = m->seq;
+	r.time = m->time;
+	r.msgclass = m->msgclass;
+
+	write_client(c, &h, sizeof(h));
+	write_client(c, &r, sizeof(r));
+	write_client(c, m->text, m->length);
+}
+
 static void gg_login_ok(client_t *c, uint32_t uin) {
 	client_t *old_client;
-
-	struct gg_header h;
 	msgqueue_t m;
 
 	printf("succeded!\n");
 
 	if ((old_client = find_client(uin))) {
 		printf("duplicate client, removing previous\n");
-		/* XXX kopie się */
-		remove_client(old_client);
+
+		write_full_packet(old_client, GG_DISCONNECTING, NULL, 0);
+		old_client->remove = 1;
+//		remove_client(old_client);	// XXX?
 	}
 
 	c->uin = uin;
@@ -63,27 +173,38 @@ static void gg_login_ok(client_t *c, uint32_t uin) {
 
 	write_full_packet(c, GG_LOGIN_OK, NULL, 0);
 
+	/* XXX */
+/*
+	c->status_write = gg_status_write;
+	c->status_write = gg60_status_write;
+	c->status_write = gg80_status_write;
+
+	c->msg_send	= gg80_msg_send;
+*/
+
+	c->status_write = gg77_status_write;
+	c->notify_reply = gg77_notify_reply;
+	c->msg_send	= gg_msg_send;
+
+	/* motd */
+	{
+		msgqueue_t motd;
+
+		motd.sender = 0;
+		motd.time = 0;
+		motd.seq = 0;
+		motd.msgclass = GG_CLASS_MSG;
+		motd.text = "Witaj na serwerze usg!";
+		motd.length = strlen(motd.text)+1;
+
+		c->msg_send(c, &motd);
+	}
+
 	/* XXX, sprawdzic czy w dobrym miejscu */
 	while (!unqueue_message(c->uin, &m)) {
-		struct gg_recv_msg r;
-		friend_t *f;
-
-		if ((f = find_friend(c, m.sender))) {
-			if (f->flags & GG_USER_BLOCKED)
-				break;
-		}
-
 		printf("sending queued message from %d to %d\n", m.sender, c->uin);
-		h.type = GG_RECV_MSG;
-		h.length = sizeof(r) + m.length;
-		r.sender = m.sender;
-		r.seq = m.seq;
-		r.time = m.time;
-		r.msgclass = m.msgclass;
 
-		write_client(c, &h, sizeof(h));
-		write_client(c, &r, sizeof(r));
-		write_client(c, m.text, m.length);
+		c->msg_send(c, &m);
 
 		xfree(m.text);
 	}
@@ -346,9 +467,26 @@ static int gg_notify_remove_handler(client_t *c, void *data, uint32_t len) {
 
 static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_new_status *s = (struct gg_new_status *) data;
+	int status;
 	char buf[100];
 
-	c->status = s->status;
+	status = s->status;
+
+	/* XXX, sprawdzac protokol? */
+
+	if (status & GG_STATUS_VOICE_MASK) {
+		status &= ~GG_STATUS_VOICE_MASK;
+		/* XXX */
+	}
+
+	if (status & GG_STATUS_FRIENDS_MASK) {
+		status &= ~GG_STATUS_FRIENDS_MASK;
+		c->status_private = 1;
+	} else
+		c->status_private = 0;
+
+	c->status = status;
+
 	if (c->status_descr) {
 		xfree(c->status_descr);
 		c->status_descr = NULL;
@@ -374,6 +512,13 @@ static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 		unlink(buf);
 
 	changed_status(c);
+
+	if (c->status == GG_STATUS_NOT_AVAIL_DESCR || c->status == GG_STATUS_NOT_AVAIL) {
+		/* rozlaczamy klienta */
+		
+		write_full_packet(c, 0x0d, NULL, 0);
+		c->remove = 1;
+	}
 
 	return 0;
 }
@@ -491,6 +636,11 @@ void handle_input_packet(client_t *c) {
 	int i;
 
 	printf("uin %d, fd %d sent packet %.02x length %d\n", c->uin, c->fd, h->type, h->length);
+
+	if (c->remove) {
+		printf("(removed?)\n");
+		return;
+	}
 
 	for (i = 0; gg_handlers[i].type; i++) {
 		if (gg_handlers[i].type == h->type) {

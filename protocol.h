@@ -228,6 +228,17 @@ struct gg_recv_msg {
 	uint32_t msgclass;
 } __attribute__ ((packed));
 
+#define GG_RECV_MSG80 0x002e
+
+struct gg_recv_msg80 {
+	uint32_t sender;
+	uint32_t seq;
+	uint32_t time;
+	uint32_t msgclass;
+	uint32_t offset_plain;
+	uint32_t offset_attr;
+} __attribute__ ((packed));
+
 #define GG_PING 0x0008
 	
 #define GG_PONG 0x0007
