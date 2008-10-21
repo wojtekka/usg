@@ -139,7 +139,7 @@ void changed_status(client_t *c)
 /* obs³uguje przychodz±ce po³±cznia */
 static int handle_connection(client_t *c)
 {
-	client_t n;
+	client_t *n;
 	struct sockaddr_in sin;
 	int fd, sin_len = sizeof(sin), nb = 1;
 	struct gg_welcome w;
@@ -155,19 +155,21 @@ static int handle_connection(client_t *c)
 		return 0;
 	}
 	
-	memset(&n, 0, sizeof(n));
-	n.fd = fd;
-	n.state = STATE_LOGIN;
-	n.timeout = time(NULL) + TIMEOUT_CONNECT;
+	n = xmalloc(sizeof(client_t));
 
-	n.seed = w.key = random();
-	n.ibuf = string_init(NULL);
-	n.obuf = string_init(NULL);
+	memset(n, 0, sizeof(client_t));
 
-	write_full_packet(&n, GG_WELCOME, &w, sizeof(w));
+	n->fd = fd;
+	n->state = STATE_LOGIN;
+	n->timeout = time(NULL) + TIMEOUT_CONNECT;
 
-	list_add(&clients, &n, sizeof(n));
+	n->seed = w.key = random();
+	n->ibuf = string_init(NULL);
+	n->obuf = string_init(NULL);
 
+	write_full_packet(n, GG_WELCOME, &w, sizeof(w));
+
+	list_add(&clients, n);
 	return 0;
 }
 
@@ -267,7 +269,7 @@ int main(int argc, char **argv)
 {
 	struct sockaddr_in sin;
 	int sock, opt = 1;
-	client_t cl;
+	client_t *cl;
 
 	srand(time(NULL));
 
@@ -295,11 +297,13 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	memset(&cl, 0, sizeof(cl));
-	cl.fd = sock;
-	cl.state = STATE_LISTENING;
-	cl.timeout = -1;
-	list_add(&clients, &cl, sizeof(cl));
+	cl = malloc(sizeof(client_t));
+	memset(cl, 0, sizeof(client_t));
+
+	cl->fd = sock;
+	cl->state = STATE_LISTENING;
+	cl->timeout = -1;
+	list_add(&clients, cl);
 
 	while (1) {
 		int nfds = 0, i, ret;

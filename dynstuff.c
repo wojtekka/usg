@@ -27,22 +27,8 @@
 #include "dynstuff.h"
 #include "xmalloc.h"
 
-/*
- * list_add_sorted()
- *
- * dodaje do listy dany element. przy okazji mo¿e te¿ skopiowaæ zawarto¶æ.
- * je¶li poda siê jako ostatni parametr funkcjê porównuj±c± zawarto¶æ
- * elementów, mo¿e posortowaæ od razu.
- *
- *  - list - wska¼nik do listy,
- *  - data - wska¼nik do elementu,
- *  - alloc_size - rozmiar elementu, je¶li chcemy go skopiowaæ.
- *
- * zwraca wska¼nik zaalokowanego elementu lub NULL w przpadku b³êdu.
- */
-void *list_add_sorted(struct list **list, void *data, int alloc_size, int (*comparision)(void *, void *))
-{
-	struct list *new, *tmp;
+void *list_add(struct list **list, void *data) {
+	list_t new;
 
 	if (!list) {
 		errno = EFAULT;
@@ -50,54 +36,12 @@ void *list_add_sorted(struct list **list, void *data, int alloc_size, int (*comp
 	}
 
 	new = xmalloc(sizeof(struct list));
+	new->next = *list;
+	*list	  = new;
 
 	new->data = data;
-	new->next = NULL;
-
-	if (alloc_size) {
-		new->data = xmalloc(alloc_size);
-		memcpy(new->data, data, alloc_size);
-	}
-
-	if (!(tmp = *list)) {
-		*list = new;
-	} else {
-		if (!comparision) {
-			while (tmp->next)
-				tmp = tmp->next;
-			tmp->next = new;
-		} else {
-			struct list *prev = NULL;
-			
-			while (comparision(new->data, tmp->data) > 0) {
-				prev = tmp;
-				tmp = tmp->next;
-				if (!tmp)
-					break;
-			}
-			
-			if (!prev) {
-				tmp = *list;
-				*list = new;
-				new->next = tmp;
-			} else {
-				prev->next = new;
-				new->next = tmp;
-			}
-		}
-	}
 
 	return new->data;
-}
-
-/*
- * list_add()
- *
- * wrapper do list_add_sorted(), który zachowuje poprzedni± sk³adniê.
- */
-void *list_add(struct list **list, void *data, int alloc_size)
-{
-	return list_add_sorted(list, data, alloc_size, NULL);
 }
 
 /*

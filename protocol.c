@@ -34,9 +34,9 @@
 #include "auth.h"
 #include "msgqueue.h"
 
-static char motd_text[] = "Witaj na wolnym serwerze gg! (usg 0.2)";
+static char motd_text[] 	= "Witaj na wolnym serwerze gg! (usg 0.2)";
 
-client_t *get_client(client_t *c, int uin) {
+static client_t *get_client(client_t *c, int uin) {
 	client_t *f;
 
 	if (uin == c->uin)
@@ -448,11 +448,13 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 	printf("received notify list from %d\n", c->uin);
 
 	for (i = 0; i < len / sizeof(*n); i++) {
-		friend_t f;
+		friend_t *f;
 
-		f.uin = n[i].uin;
-		f.flags = n[i].dunno1;
-		list_add(&c->friends, &f, sizeof(f));
+		f = xmalloc(sizeof(friend_t));
+
+		f->uin = n[i].uin;
+		f->flags = n[i].dunno1;
+		list_add(&c->friends, f);
 	}
 	return 0;
 }
@@ -477,7 +479,7 @@ static int gg_list_empty_handler(client_t *c, void *data, uint32_t len) {
 
 static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_add_remove *ar = (struct gg_add_remove *) data;
-	friend_t f;
+	friend_t *f;
 
 	if (len < sizeof(struct gg_add_remove))
 		return -1;
@@ -498,11 +500,13 @@ static int gg_notify_add_handler(client_t *c, void *data, uint32_t len) {
 	 * 	libgadu nie umie wysylac, potestowac z oryginalnym serwerem
 	 */
 
-	f.uin = ar->uin;
-	f.flags = ar->dunno1;
+	f = xmalloc(sizeof(friend_t));
 
-	list_add(&c->friends, &f, sizeof(f));
-	c->notify_reply(c, f.uin);
+	f->uin = ar->uin;
+	f->flags = ar->dunno1;
+
+	list_add(&c->friends, f);
+	c->notify_reply(c, f->uin);
 
 	return 0;
 }

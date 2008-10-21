@@ -29,7 +29,7 @@
 
 #include "usg.h"
 
-unsigned int gg_login_hash(const char *pass, unsigned int seed)
+static unsigned int gg_login_hash(const char *pass, unsigned int seed)
 {
 	const unsigned char *password = (const unsigned char *) pass;
 
@@ -55,7 +55,7 @@ unsigned int gg_login_hash(const char *pass, unsigned int seed)
 	return y;
 }
 
-void gg_login_hash_sha1(const char *pass, unsigned int seed, unsigned char *result)
+static void gg_login_hash_sha1(const char *pass, unsigned int seed, unsigned char *result)
 {
 	SHA_CTX ctx;
 	
@@ -66,7 +66,7 @@ void gg_login_hash_sha1(const char *pass, unsigned int seed, unsigned char *resu
 	SHA1_Final(result, &ctx);
 }
 
-const char *get_password(int uin) {
+static const char *get_password(int uin) {
 	FILE *f;
 	struct passwd *p;
 
