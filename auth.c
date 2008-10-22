@@ -28,6 +28,7 @@
 #include <openssl/sha.h>
 
 #include "usg.h"
+#include "xmalloc.h"
 
 static unsigned int gg_login_hash(const char *pass, unsigned int seed)
 {
@@ -66,7 +67,8 @@ static void gg_login_hash_sha1(const char *pass, unsigned int seed, unsigned cha
 	SHA1_Final(result, &ctx);
 }
 
-static const char *get_password(int uin) {
+static char *get_password(int uin) {
+	char *pass;
 	FILE *f;
 	struct passwd *p;
 
@@ -76,15 +78,19 @@ static const char *get_password(int uin) {
 	}
 
 	while ((p = fgetpwent(f))) {
-		if (p->pw_uid == uin)
-			return p->pw_passwd;
+		if (p->pw_uid == uin) {
+			pass = xstrdup(p->pw_passwd);
+			fclose(f);
+			return pass;
+		}
 	}
+	fclose(f);
 	return NULL;
 }
 
 int authorize(int uin, unsigned int seed, unsigned long response)
 {
-	const char *password;
+	char *password;
 	unsigned long hash;
 
 	if (!(password = get_password(uin))) {
@@ -96,6 +102,7 @@ int authorize(int uin, unsigned int seed, unsigned long response)
 
 	printf("auth attempt: seed=%d, pass=\"%s\", myhash=%ld, hishash=%ld\n", seed, password, hash, response);
 
+	free(password);
 	return (hash == response);
 }
 
@@ -107,7 +114,7 @@ int authorize70(int uin, unsigned int seed, unsigned int type, unsigned char *re
 	char hishash[41];
 	int i;
 
-	const char *password;
+	char *password;
 
 	if (!(password = get_password(uin))) {
 		printf("auth attempt: uin %d not found in passwd repo, or empty password\n", uin);
@@ -124,6 +131,7 @@ int authorize70(int uin, unsigned int seed, unsigned int type, unsigned char *re
 	}
 
 	printf("auth attempt: seed=%d, pass=\"%s\", myhash=%s, hishash=%s\n", seed, password, myhash, hishash);
+	free(password);
 
 	for (i = 0; i < 20; i++) {
 		if (response[i] != hash[i])
