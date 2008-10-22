@@ -437,9 +437,6 @@ static int gg_login80_handler(client_t *c, void *data, uint32_t len) {
 }
 
 static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
-	struct gg_notify *n = data;
-	int i;
-
 	if (c->state != STATE_LOGIN_OK) {
 		printf("gg_notify_handler() c->state = %d\n", c->state);
 		return -3;
@@ -447,15 +444,20 @@ static int gg_notify_handler(client_t *c, void *data, uint32_t len) {
 
 	printf("received notify list from %d\n", c->uin);
 
-	for (i = 0; i < len / sizeof(*n); i++) {
+	while (len >= sizeof(struct gg_notify)) {
+		struct gg_notify *n = data;
 		friend_t *f;
 
 		f = xmalloc(sizeof(friend_t));
+		f->uin = n->uin;
+		f->flags = n->dunno1;
 
-		f->uin = n[i].uin;
-		f->flags = n[i].dunno1;
 		list_add(&c->friends, f);
+
+		len -= sizeof(struct gg_notify);
+		data += sizeof(struct gg_notify);
 	}
+
 	return 0;
 }
 
@@ -541,6 +543,11 @@ static int gg_notify_remove_handler(client_t *c, void *data, uint32_t len) {
 static int gg_new_status_handler(client_t *c, void *data, uint32_t len) {
 	struct gg_new_status *s = (struct gg_new_status *) data;
 	int status;
+
+	if (c->state != STATE_LOGIN_OK) {
+		printf("gg_new_status_handler() c->state = %d\n", c->state);
+		return -3;
+	}
 
 	status = s->status;
 

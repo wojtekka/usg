@@ -20,9 +20,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/poll.h>
+#include <arpa/inet.h>
 #include <errno.h>
 #include <time.h>
 #include <string.h>
@@ -149,6 +152,11 @@ static int handle_connection(client_t *c)
 		return 0;
 	}
 
+	if (sin_len == sizeof(struct sockaddr_in) && ((struct sockaddr_in *) &sin)->sin_family == AF_INET)
+		printf("accepted new connection from: %s:%d (%d)\n", inet_ntoa(((struct sockaddr_in *) &sin)->sin_addr), ((struct sockaddr_in *) &sin)->sin_port, fd);
+	else
+		printf("accepted new connection (%d)\n", fd);
+
 	if (ioctl(fd, FIONBIO, &nb) == -1) {
 		perror("ioctl");
 		close(fd);
@@ -271,6 +279,8 @@ int main(int argc, char **argv)
 	int sock, opt = 1;
 	client_t *cl;
 
+	int detach = 1;
+
 	srand(time(NULL));
 
 	if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
@@ -295,6 +305,33 @@ int main(int argc, char **argv)
 		perror("listen");
 		close(sock);
 		return 1;
+	}
+
+	if (detach) {
+		int pid;
+
+		if ((pid = fork()) < 0)
+			perror("fork");
+
+		if (pid > 0) {
+			/* parent */
+			exit(0);
+		}
+		if (pid == 0) {
+			int fd_null, fd_log;
+			setsid();
+
+			fd_null = open("/dev/null", O_RDWR);
+			if ((fd_log = open("usg.log", O_CREAT | O_WRONLY | O_APPEND, 0600)) == -1)
+				fd_log = fd_null;
+
+			dup2(fd_null, 0);
+			dup2(fd_log, 1);
+			dup2(fd_log, 2);
+
+			close(fd_null);
+			close(fd_log);
+		}
 	}
 
 	cl = malloc(sizeof(client_t));
