@@ -34,7 +34,7 @@
 #include "auth.h"
 #include "msgqueue.h"
 
-static char motd_text[] 	= "Witaj na wolnym serwerze gg! (usg 0.2)";
+static char motd_text[] = "Witaj na wolnym serwerze gg! (usg 0.2)"; // po kiego ten tab tam był?
 
 static client_t *get_client(client_t *c, int uin) {
 	client_t *f;
@@ -46,17 +46,13 @@ static client_t *get_client(client_t *c, int uin) {
 	if (!(f = find_client(uin))) {
 		static client_t dummy;
 		FILE *fd;
-
 		memset(&dummy, 0, sizeof(dummy));
-
 		f = &dummy;
 		f->uin = uin;
 		f->status = GG_STATUS_NOT_AVAIL;
 		f->status_descr = NULL;
-		
 		if ((fd = fopen(path_uin("reasons", uin), "r"))) {
 			static char descr_buf[300];
-
 			if (fgets(descr_buf, sizeof(descr_buf), fd)) {
 				f->status = GG_STATUS_NOT_AVAIL_DESCR;
 				f->status_descr = descr_buf;
@@ -68,16 +64,14 @@ static client_t *get_client(client_t *c, int uin) {
 	if (f->status == GG_STATUS_NOT_AVAIL || f->status == GG_STATUS_INVISIBLE)
 		return NULL;
 	
-	return f;
+	return f; // Dwa return-y? w C ?! Lepiej byłoby return f; gdyż za pierwszym razem i tak jest null (czyli pomijany)
 }
 
 static void gg77_notify_reply_data(client_t *ten, int uid) {
 	struct gg_header h;
 	struct gg_notify_reply77 n;
 	client_t *c;
-
 	int status;
-	
 	if (!(c = get_client(ten, uid)))
 		return;
 
@@ -101,14 +95,13 @@ static void gg77_notify_reply_data(client_t *ten, int uid) {
 	n.remote_port = c->port;
 	n.version = c->version;
 	n.image_size = c->image_size;
-	n.dunno1 = 0x00;		/* ? */
-	n.dunno2 = 0x00;		/* ? */
+	n.dunno1 = 0x00;
+	n.dunno2 = 0x00;
 
 	write_client(ten, &h, sizeof(h));
 	write_client(ten, &n, sizeof(n));
 	if (c->status_descr) {
 		unsigned char ile = strlen(c->status_descr);
-
 		write_client(ten, &ile, 1);
 		write_client(ten, c->status_descr, strlen(c->status_descr)+1);
 	}
@@ -192,7 +185,6 @@ static void gg_msg_send(client_t *c, msgqueue_t *m) {
 	r.seq = m->seq;
 	r.time = m->time;
 	r.msgclass = m->msgclass;
-
 	write_client(c, &h, sizeof(h));
 	write_client(c, &r, sizeof(r));
 	write_client(c, m->text, m->length);
